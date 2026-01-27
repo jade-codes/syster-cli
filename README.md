@@ -2,16 +2,15 @@
 
 Command-line interface for SysML v2 and KerML analysis.
 
-## Installation
-
 ```bash
-cargo install syster-cli
-```
-
-Or build from source:
-
-```bash
+# Build the project
 cargo build --release
+
+# Run tests
+cargo test --release
+
+# Run clippy (required before commit)
+cargo clippy --all-targets -- -D warnings
 ```
 
 ## Usage
@@ -25,9 +24,6 @@ syster ./models/
 
 # With verbose output
 syster -v model.sysml
-
-# With standard library
-syster --stdlib model.sysml
 
 # Custom stdlib path
 syster --stdlib-path /path/to/sysml.library model.sysml
