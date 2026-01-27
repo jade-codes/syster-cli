@@ -1,12 +1,16 @@
 [package]
 name = "syster-cli"
-version = "0.1.8-alpha"
+version = "0.2.0-alpha"
 edition = "2024"
 rust-version = "1.85"
 authors = ["jade-codes"]
 license = "MIT"
 repository = "https://github.com/jade-codes/syster-cli"
 description = "Command-line interface for SysML v2 and KerML analysis"
+
+[features]
+default = ["interchange"]
+interchange = ["syster-base/interchange"]
 
 [[bin]]
 name = "syster"
@@ -17,9 +21,11 @@ name = "syster_cli"
 path = "src/lib.rs"
 
 [dependencies]
-syster-base = { git = "https://github.com/jade-codes/syster-base.git" }
+syster-base = { path = "../base" }
 clap = { version = "4", features = ["derive"] }
-anyhow = "1"
+walkdir = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 tempfile = "3"
