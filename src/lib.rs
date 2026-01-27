@@ -1,6 +1,6 @@
 use std::path::PathBuf;
-use syster::project::WorkspaceLoader;
-use syster::semantic::Workspace;
+use syster::ide::AnalysisHost;
+use syster::project::{StdLibLoader, WorkspaceLoader};
 
 #[derive(Debug)]
 pub struct AnalysisResult {
@@ -18,41 +18,34 @@ pub fn run_analysis(
         println!("Analyzing: {}", input.display());
     }
 
-    // Create workspace
-    let mut workspace = Workspace::new();
     let loader = WorkspaceLoader::new();
+    let mut host = AnalysisHost::new();
 
-    // Load standard library
     if load_stdlib {
-        if verbose {
-            println!("Loading standard library...");
+        if let Some(stdlib_path) = stdlib_path {
+            let mut stdlib_loader = StdLibLoader::with_path(stdlib_path.clone());
+            stdlib_loader
+                .ensure_loaded_into_host(&mut host)
+                .expect("Failed to load stdlib");
         }
-        let stdlib_loader = if let Some(path) = stdlib_path {
-            syster::project::StdLibLoader::with_path(path.clone())
-        } else {
-            syster::project::StdLibLoader::new()
-        };
-        stdlib_loader.load(&mut workspace)?;
     }
 
-    // Load input file(s)
     if input.is_file() {
-        loader.load_file(input, &mut workspace)?;
+        loader.load_file_into_host(input, &mut host)?
     } else if input.is_dir() {
-        loader.load_directory(input, &mut workspace)?;
+        loader.load_directory_into_host(input, &mut host)?
     } else {
         return Err(format!("Input path does not exist: {}", input.display()));
     }
+
+    let analysis = host.analysis();
 
     if verbose {
         println!("Populating symbol tables...");
     }
 
-    // Populate workspace
-    workspace.populate_all()?;
-
-    let symbol_count = workspace.symbol_table().iter_symbols().count();
-    let file_count = workspace.file_count();
+    let symbol_count = analysis.symbol_index().all_symbols().count();
+    let file_count = host.file_count();
 
     Ok(AnalysisResult {
         file_count,
