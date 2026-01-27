@@ -22,11 +22,11 @@ pub fn run_analysis(
     let mut host = AnalysisHost::new();
 
     if load_stdlib {
-        if let Some(stdlib_path) = stdlib_path {
-            let mut stdlib_loader = StdLibLoader::with_path(stdlib_path.clone());
-            stdlib_loader
-                .ensure_loaded_into_host(&mut host)
-                .expect("Failed to load stdlib");
+        if let Some(path) = stdlib_path {
+            let mut stdlib_loader = StdLibLoader::with_path(path.clone());
+            if let Err(err) = stdlib_loader.ensure_loaded_into_host(&mut host) {
+                return Err(format!("Error loading stdlib: {}", err));
+            }
         }
     }
 

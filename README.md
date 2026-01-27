@@ -2,10 +2,15 @@
 
 Command-line interface for SysML v2 and KerML analysis.
 
-Build from source:
-
 ```bash
+# Build the project
 cargo build --release
+
+# Run tests
+cargo test --release
+
+# Run clippy (required before commit)
+cargo clippy --all-targets -- -D warnings
 ```
 
 ## Usage
