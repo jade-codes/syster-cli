@@ -373,7 +373,10 @@ pub fn export_model(
     load_stdlib: bool,
     stdlib_path: Option<&PathBuf>,
 ) -> Result<Vec<u8>, String> {
-    use syster::interchange::{model_from_symbols, ModelFormat, Xmi, Kpar, JsonLd};
+    use syster::interchange::{
+        model_from_symbols, restore_ids_from_symbols,
+        ModelFormat, Xmi, Kpar, JsonLd
+    };
 
     let mut host = AnalysisHost::new();
 
@@ -385,14 +388,48 @@ pub fn export_model(
     // 2. Load input file(s)
     load_input(&mut host, input, verbose)?;
 
+    // 2.5. Load metadata if present (for ID preservation on round-trip)
+    #[cfg(feature = "interchange")]
+    {
+        use syster::project::WorkspaceLoader;
+        let mut loader = WorkspaceLoader::new();
+        
+        // If input is a file, check for companion metadata
+        if input.is_file() {
+            let parent_dir = input.parent().unwrap_or(input);
+            if let Err(e) = loader.load_metadata_from_directory(parent_dir, &mut host) {
+                if verbose {
+                    eprintln!("Note: Could not load metadata: {}", e);
+                }
+            } else if verbose {
+                println!("Loaded metadata from {}", parent_dir.display());
+            }
+        } else if input.is_dir() {
+            // For directories, load metadata from that directory
+            if let Err(e) = loader.load_metadata_from_directory(input, &mut host) {
+                if verbose {
+                    eprintln!("Note: Could not load metadata: {}", e);
+                }
+            } else if verbose {
+                println!("Loaded metadata from {}", input.display());
+            }
+        }
+    }
+
     // 3. Trigger index rebuild
-    let _analysis = host.analysis();
+    let analysis = host.analysis();
 
     // 4. Get all symbols from the index
-    let symbols: Vec<_> = host.symbol_index().all_symbols().cloned().collect();
+    let symbols: Vec<_> = analysis.symbol_index().all_symbols().cloned().collect();
 
     // 5. Convert to interchange model
-    let model = model_from_symbols(&symbols);
+    let mut model = model_from_symbols(&symbols);
+
+    // 6. Restore original element IDs from symbols (if they exist)
+    model = restore_ids_from_symbols(model, analysis.symbol_index());
+    if verbose {
+        println!("Restored element IDs from symbol database");
+    }
 
     if verbose {
         println!(
@@ -402,7 +439,7 @@ pub fn export_model(
         );
     }
 
-    // 6. Serialize to requested format
+    // 8. Serialize to requested format
     match format.to_lowercase().as_str() {
         "xmi" => Xmi.write(&model).map_err(|e| e.to_string()),
         "kpar" => Kpar.write(&model).map_err(|e| e.to_string()),
@@ -425,7 +462,10 @@ pub struct ImportResult {
     pub messages: Vec<String>,
 }
 
-/// Import a model from an interchange format file.
+/// Import a model from an interchange format file (validation only).
+///
+/// This validates the model but doesn't load it into a workspace.
+/// For importing into a workspace, use `import_model_into_host()`.
 ///
 /// Supported formats are detected from file extension:
 /// - `.xmi` - XML Model Interchange
@@ -435,6 +475,81 @@ pub struct ImportResult {
 /// # Arguments
 /// * `input` - Path to the interchange file
 /// * `format` - Optional format override (otherwise detected from extension)
+/// * `verbose` - Enable verbose output
+///
+/// # Returns
+/// An `ImportResult` with element count and symbol info.
+#[cfg(feature = "interchange")]
+pub fn import_model_into_host(
+    host: &mut AnalysisHost,
+    input: &PathBuf,
+    format: Option<&str>,
+    verbose: bool,
+) -> Result<ImportResult, String> {
+    use syster::interchange::{detect_format, symbols_from_model, ModelFormat, Xmi, Kpar, JsonLd};
+
+    // Read the input file
+    let bytes = std::fs::read(input)
+        .map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
+
+    // Determine format
+    let format_str = format.map(String::from).unwrap_or_else(|| {
+        input.extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("xmi")
+            .to_string()
+    });
+
+    if verbose {
+        println!("Importing {} as {} into workspace", input.display(), format_str);
+    }
+
+    // Parse the model
+    let model = match format_str.to_lowercase().as_str() {
+        "xmi" | "sysmlx" | "kermlx" => Xmi.read(&bytes).map_err(|e| e.to_string())?,
+        "kpar" => Kpar.read(&bytes).map_err(|e| e.to_string())?,
+        "jsonld" | "json-ld" | "json" => JsonLd.read(&bytes).map_err(|e| e.to_string())?,
+        _ => {
+            // Try to detect from file extension
+            if let Some(format_impl) = detect_format(input) {
+                format_impl.read(&bytes).map_err(|e| e.to_string())?
+            } else {
+                return Err(format!("Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.", format_str));
+            }
+        }
+    };
+
+    // Convert model to symbols
+    let symbols = symbols_from_model(&model);
+    let symbol_count = symbols.len();
+
+    if verbose {
+        println!("Converted {} elements to {} symbols", model.elements.len(), symbol_count);
+    }
+
+    // Add symbols to host
+    host.add_symbols_from_model(symbols);
+
+    if verbose {
+        println!("Loaded symbols into workspace with preserved element IDs");
+    }
+
+    Ok(ImportResult {
+        element_count: model.elements.len(),
+        relationship_count: model.relationships.len(),
+        error_count: 0,
+        messages: vec![format!("Successfully imported {} symbols", symbol_count)],
+    })
+}
+
+/// Import and validate a model from an interchange format (legacy version).
+///
+/// This validates the model but doesn't load it into a workspace.
+/// For importing into a workspace, use `import_model_into_host()`.
+///
+/// # Arguments
+/// * `input` - Path to the model file
+/// * `format` - Optional format override (xmi, kpar, jsonld)
 /// * `verbose` - Enable verbose output
 ///
 /// # Returns
@@ -511,5 +626,100 @@ pub fn import_model(
         relationship_count: model.relationships.len(),
         error_count,
         messages,
+    })
+}
+
+/// Result of decompiling a model to SysML files.
+#[cfg(feature = "interchange")]
+#[derive(Debug)]
+pub struct DecompileResult {
+    /// Generated SysML text.
+    pub sysml_text: String,
+    /// Metadata JSON for preserving element IDs.
+    pub metadata_json: String,
+    /// Number of elements decompiled.
+    pub element_count: usize,
+    /// Source file path.
+    pub source_path: String,
+}
+
+/// Decompile an interchange file to SysML text with metadata.
+///
+/// This function converts an XMI/KPAR/JSON-LD file to SysML text plus
+/// a companion metadata JSON file that preserves element IDs for
+/// lossless round-tripping.
+///
+/// # Arguments
+/// * `input` - Path to the interchange file
+/// * `format` - Optional format override (otherwise detected from extension)
+/// * `verbose` - Enable verbose output
+///
+/// # Returns
+/// A `DecompileResult` with SysML text and metadata JSON.
+#[cfg(feature = "interchange")]
+pub fn decompile_model(
+    input: &PathBuf,
+    format: Option<&str>,
+    verbose: bool,
+) -> Result<DecompileResult, String> {
+    use syster::interchange::{detect_format, decompile_with_source, ModelFormat, Xmi, Kpar, JsonLd, SourceInfo};
+
+    // Read the input file
+    let bytes = std::fs::read(input)
+        .map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
+
+    // Determine format
+    let format_str = format.map(String::from).unwrap_or_else(|| {
+        input.extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("xmi")
+            .to_string()
+    });
+
+    if verbose {
+        println!("Decompiling {} as {}", input.display(), format_str);
+    }
+
+    // Parse the model
+    let model = match format_str.to_lowercase().as_str() {
+        "xmi" | "sysmlx" | "kermlx" => Xmi.read(&bytes).map_err(|e| e.to_string())?,
+        "kpar" => Kpar.read(&bytes).map_err(|e| e.to_string())?,
+        "jsonld" | "json-ld" | "json" => JsonLd.read(&bytes).map_err(|e| e.to_string())?,
+        _ => {
+            if let Some(format_impl) = detect_format(input) {
+                format_impl.read(&bytes).map_err(|e| e.to_string())?
+            } else {
+                return Err(format!("Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.", format_str));
+            }
+        }
+    };
+
+    let element_count = model.elements.len();
+
+    // Create source info
+    let source = SourceInfo::from_path(input.to_string_lossy())
+        .with_format(&format_str);
+
+    // Decompile to SysML
+    let result = decompile_with_source(&model, source);
+
+    if verbose {
+        println!(
+            "Decompiled: {} elements -> {} chars of SysML, {} metadata entries",
+            element_count,
+            result.text.len(),
+            result.metadata.elements.len()
+        );
+    }
+
+    // Serialize metadata to JSON
+    let metadata_json = serde_json::to_string_pretty(&result.metadata)
+        .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
+
+    Ok(DecompileResult {
+        sysml_text: result.text,
+        metadata_json,
+        element_count,
+        source_path: input.to_string_lossy().to_string(),
     })
 }
