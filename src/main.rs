@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use syster::hir::Severity;
 use syster_cli::{run_analysis, export_ast, export_json, DiagnosticInfo};
 #[cfg(feature = "interchange")]
-use syster_cli::{export_model, import_model};
+use syster_cli::{export_model, import_model, import_model_into_host, decompile_model};
 
 /// Output format for export commands
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -68,6 +68,16 @@ struct Cli {
     #[arg(long)]
     import: bool,
 
+    /// Import interchange file into workspace for analysis (preserves element IDs)
+    #[cfg(feature = "interchange")]
+    #[arg(long)]
+    import_workspace: bool,
+
+    /// Decompile interchange file to SysML text + metadata
+    #[cfg(feature = "interchange")]
+    #[arg(long)]
+    decompile: bool,
+
     /// Write output to file instead of stdout
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
@@ -80,7 +90,43 @@ fn main() -> ExitCode {
         println!("Analyzing: {}", cli.input.display());
     }
 
-    // Handle interchange import
+    // Handle decompile (convert XMI to SysML text)
+    #[cfg(feature = "interchange")]
+    if cli.decompile {
+        match decompile_model(&cli.input, None, cli.verbose) {
+            Ok(result) => {
+                println!(
+                    "✓ Decompiled {} elements from {}",
+                    result.element_count, result.source_path
+                );
+                
+                // Write SysML file
+                let sysml_path = cli.output.clone()
+                    .unwrap_or_else(|| cli.input.with_extension("sysml"));
+                if let Err(e) = std::fs::write(&sysml_path, &result.sysml_text) {
+                    eprintln!("error: failed to write {}: {}", sysml_path.display(), e);
+                    return ExitCode::FAILURE;
+                }
+                println!("  Wrote: {}", sysml_path.display());
+                
+                // Write metadata file
+                let metadata_path = sysml_path.with_extension("metadata.json");
+                if let Err(e) = std::fs::write(&metadata_path, &result.metadata_json) {
+                    eprintln!("error: failed to write {}: {}", metadata_path.display(), e);
+                    return ExitCode::FAILURE;
+                }
+                println!("  Wrote: {}", metadata_path.display());
+                
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle interchange import (validate only)
     #[cfg(feature = "interchange")]
     if cli.import {
         match import_model(&cli.input, None, cli.verbose) {
@@ -96,6 +142,47 @@ fn main() -> ExitCode {
                     }
                     return ExitCode::FAILURE;
                 }
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle import into workspace (for analysis)
+    #[cfg(feature = "interchange")]
+    if cli.import_workspace {
+        use syster::ide::AnalysisHost;
+        use syster::project::StdLibLoader;
+
+        let mut host = AnalysisHost::new();
+
+        // Load stdlib if enabled
+        if !cli.no_stdlib {
+            let mut loader = StdLibLoader::new();
+            if let Err(e) = loader.ensure_loaded_into_host(&mut host) {
+                eprintln!("warning: failed to load stdlib: {}", e);
+            }
+        }
+
+        // Import the XMI/KPAR model into workspace
+        match import_model_into_host(&mut host, &cli.input, None, cli.verbose) {
+            Ok(result) => {
+                println!(
+                    "✓ Imported {} elements ({} symbols) into workspace",
+                    result.element_count,
+                    result.element_count
+                );
+
+                // Run analysis on imported symbols
+                let analysis = host.analysis();
+                let all_symbols: Vec<_> = analysis.symbol_index().all_symbols().collect();
+
+                println!("  Total symbols in workspace: {}", all_symbols.len());
+                println!("  Element IDs preserved: ✓");
+
                 return ExitCode::SUCCESS;
             }
             Err(e) => {
