@@ -30,10 +30,10 @@ fn test_main_logic_through_run_analysis() {
     let input = &file_path;
     let verbose = false;
     let load_stdlib = true; // !no_stdlib
-    let stdlib_path = None;
+    let stdlib_path: Option<&std::path::Path> = None;
 
     // 2. Call run_analysis
-    let result = run_analysis(input, verbose, load_stdlib, stdlib_path.as_ref());
+    let result = run_analysis(input, verbose, load_stdlib, stdlib_path);
 
     // 3. Verify result can be formatted as main() does
     assert!(result.is_ok());
@@ -133,7 +133,7 @@ fn test_main_with_errors_returns_failure() {
     let result = run_analysis(&file_path, false, false, None).unwrap();
 
     // Check we got at least some diagnostic
-    assert!(result.error_count > 0 || result.warning_count > 0 || result.diagnostics.len() > 0);
+    assert!(result.error_count > 0 || result.warning_count > 0 || !result.diagnostics.is_empty());
 }
 
 #[test]

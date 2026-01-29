@@ -39,7 +39,7 @@ fn test_analyze_directory() {
     let mut f2 = fs::File::create(&file2).unwrap();
     writeln!(f2, "part def Bike;").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 2);
     assert!(result.symbol_count >= 2);
@@ -56,7 +56,7 @@ fn test_nonexistent_path() {
 fn test_empty_directory() {
     let temp_dir = TempDir::new().unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 0);
     assert_eq!(result.symbol_count, 0);
@@ -84,7 +84,7 @@ fn test_nested_directory_structure() {
     let mut f3 = fs::File::create(&file3).unwrap();
     writeln!(f3, "part def Car;").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 3);
     assert!(result.symbol_count >= 3);
@@ -339,7 +339,7 @@ fn test_whitespace_only() {
     let mut file = fs::File::create(&file_path).unwrap();
     writeln!(file, "   ").unwrap();
     writeln!(file, "\t\t").unwrap();
-    writeln!(file, "").unwrap();
+    writeln!(file).unwrap();
 
     let result = run_analysis(&file_path, false, false, None).unwrap();
 
@@ -365,7 +365,7 @@ fn test_non_sysml_files_ignored() {
     let mut f3 = fs::File::create(&rs_file).unwrap();
     writeln!(f3, "fn main() {{}}").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     // Only the .sysml file should be loaded
     assert_eq!(result.file_count, 1);
@@ -397,7 +397,7 @@ fn test_mixed_sysml_kerml_directory() {
     let mut f2 = fs::File::create(&kerml_file).unwrap();
     writeln!(f2, "classifier Base;").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 2);
     assert!(result.symbol_count >= 2);
@@ -446,7 +446,7 @@ fn test_cross_file_resolution() {
     writeln!(f2, "    }}").unwrap();
     writeln!(f2, "}}").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 2);
     assert!(result.symbol_count >= 4);
@@ -479,7 +479,7 @@ fn test_cross_file_resolution_no_errors() {
     writeln!(f2, "    }}").unwrap();
     writeln!(f2, "}}").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 2);
     // Definitions: package, Engine, power, Wheel = 4
@@ -520,7 +520,7 @@ fn test_cross_file_specialization_resolves() {
     writeln!(f2, "    }}").unwrap();
     writeln!(f2, "}}").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 2);
     // Specialization of Vehicle should resolve without errors
@@ -551,7 +551,7 @@ fn test_cross_file_unresolved_produces_error() {
     writeln!(f2, "    part car : NonExistentType;").unwrap();
     writeln!(f2, "}}").unwrap();
 
-    let result = run_analysis(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let result = run_analysis(temp_dir.path(), false, false, None).unwrap();
 
     assert_eq!(result.file_count, 2);
     // Should have an error for unresolved type
@@ -723,7 +723,7 @@ fn test_export_ast_directory() {
     let mut f2 = fs::File::create(&file2).unwrap();
     writeln!(f2, "part def Car;").unwrap();
 
-    let json = export_ast(&temp_dir.path().to_path_buf(), false, false, None).unwrap();
+    let json = export_ast(temp_dir.path(), false, false, None).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
     assert_eq!(parsed["files"].as_array().unwrap().len(), 2);
@@ -962,7 +962,7 @@ mod interchange_tests {
         // We just want to make sure it doesn't crash
         match result {
             Err(_) => {} // Error is acceptable
-            Ok(r) => {
+            Ok(_r) => {
                 // Empty result is also acceptable for invalid XML
                 // (the parser is lenient and may just return no elements)
             }

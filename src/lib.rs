@@ -71,10 +71,10 @@ where
 /// # Returns
 /// An `AnalysisResult` with file count, symbol count, and diagnostics.
 pub fn run_analysis(
-    input: &PathBuf,
+    input: &Path,
     verbose: bool,
     load_stdlib: bool,
-    stdlib_path: Option<&PathBuf>,
+    stdlib_path: Option<&Path>,
 ) -> Result<AnalysisResult, String> {
     let mut host = AnalysisHost::new();
 
@@ -178,7 +178,7 @@ fn is_sysml_file(path: &Path) -> bool {
 /// Load standard library files.
 fn load_stdlib_files(
     host: &mut AnalysisHost,
-    custom_path: Option<&PathBuf>,
+    custom_path: Option<&Path>,
     verbose: bool,
 ) -> Result<(), String> {
     if verbose {
@@ -218,7 +218,7 @@ fn load_stdlib_files(
 fn collect_diagnostics(host: &AnalysisHost) -> Vec<DiagnosticInfo> {
     let mut all_diagnostics = Vec::new();
 
-    for (path, _) in host.files() {
+    for path in host.files().keys() {
         if let Some(file_id) = host.get_file_id_for_path(path) {
             let file_path = path.to_string_lossy().to_string();
             let diagnostics = check_file(host.symbol_index(), file_id);
@@ -280,10 +280,10 @@ pub struct FileAst {
 
 /// Export AST (symbols) for all files.
 pub fn export_ast(
-    input: &PathBuf,
+    input: &Path,
     verbose: bool,
     load_stdlib: bool,
-    stdlib_path: Option<&PathBuf>,
+    stdlib_path: Option<&Path>,
 ) -> Result<String, String> {
     let mut host = AnalysisHost::new();
 
@@ -297,7 +297,7 @@ pub fn export_ast(
     let mut files = Vec::new();
 
     // Only export user files, not stdlib
-    for (path, _) in host.files() {
+    for path in host.files().keys() {
         let path_str = path.to_string_lossy().to_string();
 
         // Skip stdlib files
@@ -365,11 +365,11 @@ pub fn export_json(result: &AnalysisResult) -> Result<String, String> {
 /// The serialized model as bytes.
 #[cfg(feature = "interchange")]
 pub fn export_model(
-    input: &PathBuf,
+    input: &Path,
     format: &str,
     verbose: bool,
     load_stdlib: bool,
-    stdlib_path: Option<&PathBuf>,
+    stdlib_path: Option<&Path>,
 ) -> Result<Vec<u8>, String> {
     use syster::interchange::{
         JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
@@ -389,7 +389,7 @@ pub fn export_model(
     #[cfg(feature = "interchange")]
     {
         use syster::project::WorkspaceLoader;
-        let mut loader = WorkspaceLoader::new();
+        let loader = WorkspaceLoader::new();
 
         // If input is a file, check for companion metadata
         if input.is_file() {
@@ -482,7 +482,7 @@ pub struct ImportResult {
 #[cfg(feature = "interchange")]
 pub fn import_model_into_host(
     host: &mut AnalysisHost,
-    input: &PathBuf,
+    input: &Path,
     format: Option<&str>,
     verbose: bool,
 ) -> Result<ImportResult, String> {
@@ -568,7 +568,7 @@ pub fn import_model_into_host(
 /// An `ImportResult` with element count and validation info.
 #[cfg(feature = "interchange")]
 pub fn import_model(
-    input: &PathBuf,
+    input: &Path,
     format: Option<&str>,
     verbose: bool,
 ) -> Result<ImportResult, String> {
@@ -680,7 +680,7 @@ pub struct DecompileResult {
 /// A `DecompileResult` with SysML text and metadata JSON.
 #[cfg(feature = "interchange")]
 pub fn decompile_model(
-    input: &PathBuf,
+    input: &Path,
     format: Option<&str>,
     verbose: bool,
 ) -> Result<DecompileResult, String> {

@@ -207,7 +207,7 @@ fn main() -> ExitCode {
             format_str,
             cli.verbose,
             !cli.no_stdlib,
-            cli.stdlib_path.as_ref(),
+            cli.stdlib_path.as_deref(),
         ) {
             Ok(bytes) => {
                 write_bytes_output(&bytes, cli.output.as_ref());
@@ -226,7 +226,7 @@ fn main() -> ExitCode {
             &cli.input,
             cli.verbose,
             !cli.no_stdlib,
-            cli.stdlib_path.as_ref(),
+            cli.stdlib_path.as_deref(),
         ) {
             Ok(ast_output) => {
                 write_output(&ast_output, cli.output.as_ref());
@@ -243,7 +243,7 @@ fn main() -> ExitCode {
         &cli.input,
         cli.verbose,
         !cli.no_stdlib,
-        cli.stdlib_path.as_ref(),
+        cli.stdlib_path.as_deref(),
     ) {
         Ok(result) => {
             // Handle JSON export
