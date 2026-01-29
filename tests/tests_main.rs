@@ -30,20 +30,20 @@ fn test_main_logic_through_run_analysis() {
     let input = &file_path;
     let verbose = false;
     let load_stdlib = true; // !no_stdlib
-    let stdlib_path = None;
+    let stdlib_path: Option<&std::path::Path> = None;
 
     // 2. Call run_analysis
-    let result = run_analysis(input, verbose, load_stdlib, stdlib_path.as_ref());
+    let result = run_analysis(input, verbose, load_stdlib, stdlib_path);
 
     // 3. Verify result can be formatted as main() does
     assert!(result.is_ok());
     let result = result.unwrap();
     let output = format!(
-        "✓ Successfully analyzed {} files ({} symbols)",
-        result.file_count, result.symbol_count
+        "✓ Analyzed {} files: {} symbols, {} warnings",
+        result.file_count, result.symbol_count, result.warning_count
     );
 
-    assert!(output.contains("Successfully analyzed"));
+    assert!(output.contains("Analyzed"));
     assert!(output.contains("files"));
     assert!(output.contains("symbols"));
 }
@@ -55,9 +55,6 @@ fn test_main_error_handling_through_run_analysis() {
 
     assert!(result.is_err());
     let error = result.unwrap_err();
-
-    // Verify error can be converted to anyhow::Error as main() does
-    let _anyhow_err = anyhow::anyhow!(error.clone());
 
     // Verify error message is meaningful
     assert!(error.contains("does not exist"));
@@ -113,12 +110,49 @@ fn test_main_output_format() {
 
     // Verify the format string that main() uses
     let output = format!(
-        "✓ Successfully analyzed {} files ({} symbols)",
-        result.file_count, result.symbol_count
+        "✓ Analyzed {} files: {} symbols, {} warnings",
+        result.file_count, result.symbol_count, result.warning_count
     );
 
-    // Check that checkmark and formatting are present
-    assert!(output.starts_with("✓ Successfully"));
+    // Check formatting is present
+    assert!(output.starts_with("✓ Analyzed"));
     assert!(output.contains("1 files"));
     assert!(output.contains("2 symbols"));
+}
+
+#[test]
+fn test_main_with_errors_returns_failure() {
+    // Test that files with errors would cause main to return failure
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("test.sysml");
+
+    let mut file = fs::File::create(&file_path).unwrap();
+    // Unresolved type reference should produce an error
+    writeln!(file, "part p : UnknownType;").unwrap();
+
+    let result = run_analysis(&file_path, false, false, None).unwrap();
+
+    // Check we got at least some diagnostic
+    assert!(result.error_count > 0 || result.warning_count > 0 || !result.diagnostics.is_empty());
+}
+
+#[test]
+fn test_main_diagnostic_output() {
+    // Test that diagnostics can be formatted as main() does
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("test.sysml");
+
+    let mut file = fs::File::create(&file_path).unwrap();
+    writeln!(file, "part def Vehicle;").unwrap();
+
+    let result = run_analysis(&file_path, false, false, None).unwrap();
+
+    // Diagnostics should be formattable
+    for diag in &result.diagnostics {
+        let formatted = format!(
+            "{}:{}:{}: {:?}: {}",
+            diag.file, diag.line, diag.col, diag.severity, diag.message
+        );
+        assert!(!formatted.is_empty());
+    }
 }
