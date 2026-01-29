@@ -5,7 +5,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-use syster_cli::{run_analysis, export_ast, export_json};
+use syster_cli::{export_ast, export_json, run_analysis};
 use tempfile::TempDir;
 
 // ============================================================================
@@ -694,17 +694,17 @@ fn test_export_ast_single_file() {
 
     // Parse the JSON to verify structure
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-    
+
     assert!(parsed["files"].is_array());
     assert_eq!(parsed["files"].as_array().unwrap().len(), 1);
-    
+
     let file_entry = &parsed["files"][0];
     assert!(file_entry["path"].as_str().unwrap().contains("test.sysml"));
     assert!(file_entry["symbols"].is_array());
-    
+
     let symbols = file_entry["symbols"].as_array().unwrap();
     assert!(symbols.len() >= 2); // Vehicle + mass
-    
+
     // Check Vehicle symbol
     let vehicle = symbols.iter().find(|s| s["name"] == "Vehicle").unwrap();
     assert_eq!(vehicle["kind"], "PartDef");
@@ -743,10 +743,14 @@ fn test_export_ast_includes_supertypes() {
 
     let symbols = parsed["files"][0]["symbols"].as_array().unwrap();
     let car = symbols.iter().find(|s| s["name"] == "Car").unwrap();
-    
+
     assert!(car["supertypes"].is_array());
     let supertypes = car["supertypes"].as_array().unwrap();
-    assert!(supertypes.iter().any(|s| s.as_str().unwrap().contains("Vehicle")));
+    assert!(
+        supertypes
+            .iter()
+            .any(|s| s.as_str().unwrap().contains("Vehicle"))
+    );
 }
 
 #[test]
@@ -761,7 +765,7 @@ fn test_export_ast_includes_location() {
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
     let vehicle = &parsed["files"][0]["symbols"][0];
-    
+
     // Should have location info (1-indexed)
     assert!(vehicle["start_line"].as_u64().unwrap() >= 1);
     assert!(vehicle["start_col"].as_u64().unwrap() >= 1);
@@ -867,14 +871,17 @@ mod interchange_tests {
         let mut file = fs::File::create(&file_path).unwrap();
         writeln!(file, "package TestPackage;").unwrap();
 
-        let xmi_bytes = export_model(&file_path, "xmi", false, false, None)
-            .expect("Should export XMI");
+        let xmi_bytes =
+            export_model(&file_path, "xmi", false, false, None).expect("Should export XMI");
 
         // Verify it's valid XML
         let xmi_str = String::from_utf8(xmi_bytes).expect("Should be valid UTF-8");
         assert!(xmi_str.contains("<?xml"), "Should have XML declaration");
         assert!(xmi_str.contains("XMI"), "Should have XMI element");
-        assert!(xmi_str.contains("TestPackage"), "Should contain package name");
+        assert!(
+            xmi_str.contains("TestPackage"),
+            "Should contain package name"
+        );
     }
 
     #[test]
@@ -885,8 +892,8 @@ mod interchange_tests {
         let mut file = fs::File::create(&file_path).unwrap();
         writeln!(file, "package TestPackage;").unwrap();
 
-        let kpar_bytes = export_model(&file_path, "kpar", false, false, None)
-            .expect("Should export KPAR");
+        let kpar_bytes =
+            export_model(&file_path, "kpar", false, false, None).expect("Should export KPAR");
 
         // Verify it starts with ZIP magic number (PK)
         assert!(kpar_bytes.len() > 2, "Should have content");
@@ -901,13 +908,13 @@ mod interchange_tests {
         let mut file = fs::File::create(&file_path).unwrap();
         writeln!(file, "package TestPackage;").unwrap();
 
-        let jsonld_bytes = export_model(&file_path, "jsonld", false, false, None)
-            .expect("Should export JSON-LD");
+        let jsonld_bytes =
+            export_model(&file_path, "jsonld", false, false, None).expect("Should export JSON-LD");
 
         // Verify it's valid JSON
         let jsonld_str = String::from_utf8(jsonld_bytes).expect("Should be valid UTF-8");
-        let _parsed: serde_json::Value = serde_json::from_str(&jsonld_str)
-            .expect("Should be valid JSON");
+        let _parsed: serde_json::Value =
+            serde_json::from_str(&jsonld_str).expect("Should be valid JSON");
     }
 
     #[test]
@@ -927,7 +934,7 @@ mod interchange_tests {
         use syster_cli::import_model;
 
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a valid XMI file
         let xmi_path = temp_dir.path().join("test.xmi");
         let xmi_content = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -936,8 +943,7 @@ mod interchange_tests {
 </xmi:XMI>"#;
         fs::write(&xmi_path, xmi_content).unwrap();
 
-        let result = import_model(&xmi_path, None, false)
-            .expect("Should import XMI");
+        let result = import_model(&xmi_path, None, false).expect("Should import XMI");
 
         assert!(result.element_count > 0, "Should have elements");
         assert!(result.error_count == 0, "Should have no errors");

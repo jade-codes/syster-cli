@@ -4,9 +4,9 @@ use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use syster::hir::Severity;
-use syster_cli::{run_analysis, export_ast, export_json, DiagnosticInfo};
+use syster_cli::{DiagnosticInfo, export_ast, export_json, run_analysis};
 #[cfg(feature = "interchange")]
-use syster_cli::{export_model, import_model, import_model_into_host, decompile_model};
+use syster_cli::{decompile_model, export_model, import_model, import_model_into_host};
 
 /// Output format for export commands
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -99,16 +99,18 @@ fn main() -> ExitCode {
                     "✓ Decompiled {} elements from {}",
                     result.element_count, result.source_path
                 );
-                
+
                 // Write SysML file
-                let sysml_path = cli.output.clone()
+                let sysml_path = cli
+                    .output
+                    .clone()
                     .unwrap_or_else(|| cli.input.with_extension("sysml"));
                 if let Err(e) = std::fs::write(&sysml_path, &result.sysml_text) {
                     eprintln!("error: failed to write {}: {}", sysml_path.display(), e);
                     return ExitCode::FAILURE;
                 }
                 println!("  Wrote: {}", sysml_path.display());
-                
+
                 // Write metadata file
                 let metadata_path = sysml_path.with_extension("metadata.json");
                 if let Err(e) = std::fs::write(&metadata_path, &result.metadata_json) {
@@ -116,7 +118,7 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
                 println!("  Wrote: {}", metadata_path.display());
-                
+
                 return ExitCode::SUCCESS;
             }
             Err(e) => {
@@ -172,8 +174,7 @@ fn main() -> ExitCode {
             Ok(result) => {
                 println!(
                     "✓ Imported {} elements ({} symbols) into workspace",
-                    result.element_count,
-                    result.element_count
+                    result.element_count, result.element_count
                 );
 
                 // Run analysis on imported symbols
@@ -200,8 +201,14 @@ fn main() -> ExitCode {
             InterchangeFormat::Kpar => "kpar",
             InterchangeFormat::JsonLd => "jsonld",
         };
-        
-        match export_model(&cli.input, format_str, cli.verbose, !cli.no_stdlib, cli.stdlib_path.as_ref()) {
+
+        match export_model(
+            &cli.input,
+            format_str,
+            cli.verbose,
+            !cli.no_stdlib,
+            cli.stdlib_path.as_ref(),
+        ) {
             Ok(bytes) => {
                 write_bytes_output(&bytes, cli.output.as_ref());
                 return ExitCode::SUCCESS;
@@ -215,7 +222,12 @@ fn main() -> ExitCode {
 
     // Handle AST export
     if cli.export_ast {
-        match export_ast(&cli.input, cli.verbose, !cli.no_stdlib, cli.stdlib_path.as_ref()) {
+        match export_ast(
+            &cli.input,
+            cli.verbose,
+            !cli.no_stdlib,
+            cli.stdlib_path.as_ref(),
+        ) {
             Ok(ast_output) => {
                 write_output(&ast_output, cli.output.as_ref());
                 return ExitCode::SUCCESS;

@@ -3,8 +3,8 @@
 //! This module provides the `run_analysis` function for parsing and analyzing
 //! SysML v2 and KerML files using the syster-base library.
 
-use std::path::{Path, PathBuf};
 use serde::Serialize;
+use std::path::{Path, PathBuf};
 use syster::hir::{Severity, check_file};
 use syster::ide::AnalysisHost;
 use walkdir::WalkDir;
@@ -295,11 +295,11 @@ pub fn export_ast(
     let _analysis = host.analysis();
 
     let mut files = Vec::new();
-    
+
     // Only export user files, not stdlib
     for (path, _) in host.files() {
         let path_str = path.to_string_lossy().to_string();
-        
+
         // Skip stdlib files
         if path_str.contains("sysml.library") {
             continue;
@@ -335,14 +335,12 @@ pub fn export_ast(
     files.sort_by(|a, b| a.path.cmp(&b.path));
 
     let export = AstExport { files };
-    serde_json::to_string_pretty(&export)
-        .map_err(|e| format!("Failed to serialize AST: {}", e))
+    serde_json::to_string_pretty(&export).map_err(|e| format!("Failed to serialize AST: {}", e))
 }
 
 /// Export analysis result as JSON.
 pub fn export_json(result: &AnalysisResult) -> Result<String, String> {
-    serde_json::to_string_pretty(result)
-        .map_err(|e| format!("Failed to serialize result: {}", e))
+    serde_json::to_string_pretty(result).map_err(|e| format!("Failed to serialize result: {}", e))
 }
 
 // ============================================================================
@@ -374,8 +372,7 @@ pub fn export_model(
     stdlib_path: Option<&PathBuf>,
 ) -> Result<Vec<u8>, String> {
     use syster::interchange::{
-        model_from_symbols, restore_ids_from_symbols,
-        ModelFormat, Xmi, Kpar, JsonLd
+        JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
     };
 
     let mut host = AnalysisHost::new();
@@ -393,7 +390,7 @@ pub fn export_model(
     {
         use syster::project::WorkspaceLoader;
         let mut loader = WorkspaceLoader::new();
-        
+
         // If input is a file, check for companion metadata
         if input.is_file() {
             let parent_dir = input.parent().unwrap_or(input);
@@ -444,7 +441,10 @@ pub fn export_model(
         "xmi" => Xmi.write(&model).map_err(|e| e.to_string()),
         "kpar" => Kpar.write(&model).map_err(|e| e.to_string()),
         "jsonld" | "json-ld" => JsonLd.write(&model).map_err(|e| e.to_string()),
-        _ => Err(format!("Unsupported format: {}. Use xmi, kpar, or jsonld.", format)),
+        _ => Err(format!(
+            "Unsupported format: {}. Use xmi, kpar, or jsonld.",
+            format
+        )),
     }
 }
 
@@ -486,22 +486,27 @@ pub fn import_model_into_host(
     format: Option<&str>,
     verbose: bool,
 ) -> Result<ImportResult, String> {
-    use syster::interchange::{detect_format, symbols_from_model, ModelFormat, Xmi, Kpar, JsonLd};
+    use syster::interchange::{JsonLd, Kpar, ModelFormat, Xmi, detect_format, symbols_from_model};
 
     // Read the input file
-    let bytes = std::fs::read(input)
-        .map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
+    let bytes =
+        std::fs::read(input).map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
 
     // Determine format
     let format_str = format.map(String::from).unwrap_or_else(|| {
-        input.extension()
+        input
+            .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("xmi")
             .to_string()
     });
 
     if verbose {
-        println!("Importing {} as {} into workspace", input.display(), format_str);
+        println!(
+            "Importing {} as {} into workspace",
+            input.display(),
+            format_str
+        );
     }
 
     // Parse the model
@@ -514,7 +519,10 @@ pub fn import_model_into_host(
             if let Some(format_impl) = detect_format(input) {
                 format_impl.read(&bytes).map_err(|e| e.to_string())?
             } else {
-                return Err(format!("Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.", format_str));
+                return Err(format!(
+                    "Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.",
+                    format_str
+                ));
             }
         }
     };
@@ -524,7 +532,11 @@ pub fn import_model_into_host(
     let symbol_count = symbols.len();
 
     if verbose {
-        println!("Converted {} elements to {} symbols", model.elements.len(), symbol_count);
+        println!(
+            "Converted {} elements to {} symbols",
+            model.elements.len(),
+            symbol_count
+        );
     }
 
     // Add symbols to host
@@ -560,15 +572,16 @@ pub fn import_model(
     format: Option<&str>,
     verbose: bool,
 ) -> Result<ImportResult, String> {
-    use syster::interchange::{detect_format, ModelFormat, Xmi, Kpar, JsonLd};
+    use syster::interchange::{JsonLd, Kpar, ModelFormat, Xmi, detect_format};
 
     // Read the input file
-    let bytes = std::fs::read(input)
-        .map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
+    let bytes =
+        std::fs::read(input).map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
 
     // Determine format
     let format_str = format.map(String::from).unwrap_or_else(|| {
-        input.extension()
+        input
+            .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("xmi")
             .to_string()
@@ -588,7 +601,10 @@ pub fn import_model(
             if let Some(format_impl) = detect_format(input) {
                 format_impl.read(&bytes).map_err(|e| e.to_string())?
             } else {
-                return Err(format!("Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.", format_str));
+                return Err(format!(
+                    "Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.",
+                    format_str
+                ));
             }
         }
     };
@@ -600,11 +616,17 @@ pub fn import_model(
     // Check for orphan relationships (references to non-existent elements)
     for rel in &model.relationships {
         if model.elements.get(&rel.source).is_none() {
-            messages.push(format!("Warning: Relationship source '{}' not found", rel.source));
+            messages.push(format!(
+                "Warning: Relationship source '{}' not found",
+                rel.source
+            ));
             error_count += 1;
         }
         if model.elements.get(&rel.target).is_none() {
-            messages.push(format!("Warning: Relationship target '{}' not found", rel.target));
+            messages.push(format!(
+                "Warning: Relationship target '{}' not found",
+                rel.target
+            ));
             error_count += 1;
         }
     }
@@ -662,15 +684,18 @@ pub fn decompile_model(
     format: Option<&str>,
     verbose: bool,
 ) -> Result<DecompileResult, String> {
-    use syster::interchange::{detect_format, decompile_with_source, ModelFormat, Xmi, Kpar, JsonLd, SourceInfo};
+    use syster::interchange::{
+        JsonLd, Kpar, ModelFormat, SourceInfo, Xmi, decompile_with_source, detect_format,
+    };
 
     // Read the input file
-    let bytes = std::fs::read(input)
-        .map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
+    let bytes =
+        std::fs::read(input).map_err(|e| format!("Failed to read {}: {}", input.display(), e))?;
 
     // Determine format
     let format_str = format.map(String::from).unwrap_or_else(|| {
-        input.extension()
+        input
+            .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("xmi")
             .to_string()
@@ -689,7 +714,10 @@ pub fn decompile_model(
             if let Some(format_impl) = detect_format(input) {
                 format_impl.read(&bytes).map_err(|e| e.to_string())?
             } else {
-                return Err(format!("Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.", format_str));
+                return Err(format!(
+                    "Unknown format: {}. Use xmi, sysmlx, kermlx, kpar, or jsonld.",
+                    format_str
+                ));
             }
         }
     };
@@ -697,8 +725,7 @@ pub fn decompile_model(
     let element_count = model.elements.len();
 
     // Create source info
-    let source = SourceInfo::from_path(input.to_string_lossy())
-        .with_format(&format_str);
+    let source = SourceInfo::from_path(input.to_string_lossy()).with_format(&format_str);
 
     // Decompile to SysML
     let result = decompile_with_source(&model, source);

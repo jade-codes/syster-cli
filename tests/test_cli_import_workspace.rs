@@ -8,7 +8,7 @@
 fn test_cli_import_workspace_xmi() {
     use std::fs;
     use std::process::Command;
-    use syster::interchange::{Model, Element, ElementId, ElementKind, Xmi, ModelFormat};
+    use syster::interchange::{Element, ElementId, ElementKind, Model, ModelFormat, Xmi};
     use tempfile::TempDir;
 
     // Create a simple XMI file
@@ -47,9 +47,18 @@ fn test_cli_import_workspace_xmi() {
     println!("STDERR:\n{}", stderr);
 
     assert!(output.status.success(), "CLI should exit successfully");
-    assert!(stdout.contains("Imported"), "Should report imported elements");
-    assert!(stdout.contains("symbols") && stdout.contains("workspace"), "Should mention symbols and workspace");
-    assert!(stdout.contains("Element IDs preserved"), "Should preserve element IDs");
+    assert!(
+        stdout.contains("Imported"),
+        "Should report imported elements"
+    );
+    assert!(
+        stdout.contains("symbols") && stdout.contains("workspace"),
+        "Should mention symbols and workspace"
+    );
+    assert!(
+        stdout.contains("Element IDs preserved"),
+        "Should preserve element IDs"
+    );
 }
 
 #[cfg(feature = "interchange")]
@@ -57,7 +66,7 @@ fn test_cli_import_workspace_xmi() {
 fn test_cli_import_workspace_with_stdlib() {
     use std::fs;
     use std::process::Command;
-    use syster::interchange::{Model, Element, ElementId, ElementKind, Xmi, ModelFormat};
+    use syster::interchange::{Element, ElementId, ElementKind, Model, ModelFormat, Xmi};
     use tempfile::TempDir;
 
     // Create a simple XMI file
@@ -82,10 +91,16 @@ fn test_cli_import_workspace_with_stdlib() {
         .expect("Should run CLI");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     assert!(output.status.success(), "CLI should succeed with stdlib");
-    assert!(stdout.contains("Imported 1 elements"), "Should import model");
-    assert!(stdout.contains("Total symbols in workspace"), "Should show workspace stats");
+    assert!(
+        stdout.contains("Imported 1 elements"),
+        "Should import model"
+    );
+    assert!(
+        stdout.contains("Total symbols in workspace"),
+        "Should show workspace stats"
+    );
 }
 
 #[cfg(feature = "interchange")]
@@ -93,7 +108,7 @@ fn test_cli_import_workspace_with_stdlib() {
 fn test_cli_import_vs_import_workspace() {
     use std::fs;
     use std::process::Command;
-    use syster::interchange::{Model, Element, ElementId, ElementKind, Xmi, ModelFormat};
+    use syster::interchange::{Element, ElementId, ElementKind, Model, ModelFormat, Xmi};
     use tempfile::TempDir;
 
     // Create XMI file
@@ -119,7 +134,10 @@ fn test_cli_import_vs_import_workspace() {
     let stdout_import = String::from_utf8_lossy(&output_import.stdout);
     assert!(output_import.status.success());
     assert!(stdout_import.contains("Imported 1 elements"));
-    assert!(!stdout_import.contains("workspace"), "--import should not mention workspace");
+    assert!(
+        !stdout_import.contains("workspace"),
+        "--import should not mention workspace"
+    );
 
     // Test --import-workspace (load into workspace)
     let output_workspace = Command::new(env!("CARGO_BIN_EXE_syster"))
@@ -131,6 +149,9 @@ fn test_cli_import_vs_import_workspace() {
 
     let stdout_workspace = String::from_utf8_lossy(&output_workspace.stdout);
     assert!(output_workspace.status.success());
-    assert!(stdout_workspace.contains("workspace"), "--import-workspace should mention workspace");
+    assert!(
+        stdout_workspace.contains("workspace"),
+        "--import-workspace should mention workspace"
+    );
     assert!(stdout_workspace.contains("Element IDs preserved"));
 }
