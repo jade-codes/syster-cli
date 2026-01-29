@@ -562,6 +562,7 @@ fn test_cross_file_unresolved_produces_error() {
 }
 
 #[test]
+#[ignore] // Requires local sysml.library - run manually with `cargo test -- --ignored`
 fn test_stdlib_type_resolution() {
     // Test that types from stdlib resolve correctly
     // Note: This test loads the full stdlib which takes ~50s
@@ -597,6 +598,7 @@ fn test_stdlib_type_resolution() {
 }
 
 #[test]
+#[ignore] // Requires local sysml.library - run manually with `cargo test -- --ignored`
 fn test_stdlib_specialization() {
     // Test that specializing stdlib types works correctly
     let temp_dir = TempDir::new().unwrap();
