@@ -153,11 +153,12 @@ fn main() -> ExitCode {
         }
     }
 
-    // Handle import into workspace (for analysis)
+    // Handle import into workspace (for analysis) + optional export
     #[cfg(feature = "interchange")]
     if cli.import_workspace {
         use syster::ide::AnalysisHost;
         use syster::project::StdLibLoader;
+        use syster_cli::export_from_host;
 
         let mut host = AnalysisHost::new();
 
@@ -172,6 +173,38 @@ fn main() -> ExitCode {
         // Import the XMI/KPAR model into workspace
         match import_model_into_host(&mut host, &cli.input, None, cli.verbose) {
             Ok(result) => {
+                // If --export is also specified, export from the imported workspace
+                if let Some(format) = &cli.export {
+                    // Use stderr for status when exporting (stdout is for data)
+                    eprintln!(
+                        "✓ Imported {} elements ({} symbols) into workspace",
+                        result.element_count, result.element_count
+                    );
+
+                    let analysis = host.analysis();
+                    let all_symbols: Vec<_> = analysis.symbol_index().all_symbols().collect();
+                    eprintln!("  Total symbols in workspace: {}", all_symbols.len());
+                    eprintln!("  Element IDs preserved: ✓");
+
+                    let format_str = match format {
+                        InterchangeFormat::Xmi => "xmi",
+                        InterchangeFormat::Kpar => "kpar",
+                        InterchangeFormat::JsonLd => "jsonld",
+                    };
+
+                    match export_from_host(&mut host, format_str, cli.verbose) {
+                        Ok(bytes) => {
+                            write_bytes_output(&bytes, cli.output.as_ref());
+                            return ExitCode::SUCCESS;
+                        }
+                        Err(e) => {
+                            eprintln!("error: {}", e);
+                            return ExitCode::FAILURE;
+                        }
+                    }
+                }
+
+                // No export - use stdout for status
                 println!(
                     "✓ Imported {} elements ({} symbols) into workspace",
                     result.element_count, result.element_count

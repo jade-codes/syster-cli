@@ -448,6 +448,45 @@ pub fn export_model(
     }
 }
 
+/// Export model from an existing AnalysisHost to an interchange format.
+///
+/// This allows exporting from a pre-populated host (e.g., after import_model_into_host).
+/// Element IDs are preserved from the symbol database.
+#[cfg(feature = "interchange")]
+pub fn export_from_host(
+    host: &mut AnalysisHost,
+    format: &str,
+    verbose: bool,
+) -> Result<Vec<u8>, String> {
+    use syster::interchange::{
+        JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
+    };
+
+    let analysis = host.analysis();
+    let symbols: Vec<_> = analysis.symbol_index().all_symbols().cloned().collect();
+
+    let mut model = model_from_symbols(&symbols);
+    model = restore_ids_from_symbols(model, analysis.symbol_index());
+
+    if verbose {
+        println!(
+            "Exported model: {} elements, {} relationships",
+            model.elements.len(),
+            model.relationships.len()
+        );
+    }
+
+    match format.to_lowercase().as_str() {
+        "xmi" => Xmi.write(&model).map_err(|e| e.to_string()),
+        "kpar" => Kpar.write(&model).map_err(|e| e.to_string()),
+        "jsonld" | "json-ld" => JsonLd.write(&model).map_err(|e| e.to_string()),
+        _ => Err(format!(
+            "Unsupported format: {}. Use xmi, kpar, or jsonld.",
+            format
+        )),
+    }
+}
+
 /// Result of importing a model from an interchange format.
 #[cfg(feature = "interchange")]
 #[derive(Debug)]

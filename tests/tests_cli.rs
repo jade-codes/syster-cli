@@ -970,4 +970,48 @@ mod interchange_tests {
             }
         }
     }
+
+    /// Test that XMI roundtrip preserves element IDs via import/export.
+    #[test]
+    fn test_xmi_roundtrip_preserves_ids() {
+        use syster::ide::AnalysisHost;
+        use syster_cli::{export_from_host, import_model_into_host};
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create an XMI file with known IDs
+        let xmi_path = temp_dir.path().join("original.xmi");
+        let original_xmi = r#"<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:sysml="http://www.omg.org/spec/SysML/20230201">
+  <sysml:Package xmi:id="pkg-uuid-12345" name="TestPkg" qualifiedName="TestPkg">
+    <ownedMember>
+      <sysml:PartDefinition xmi:id="part-uuid-67890" name="Widget" qualifiedName="TestPkg::Widget"/>
+    </ownedMember>
+  </sysml:Package>
+</xmi:XMI>"#;
+        fs::write(&xmi_path, original_xmi).unwrap();
+
+        // Import XMI into host
+        let mut host = AnalysisHost::new();
+        let import_result =
+            import_model_into_host(&mut host, &xmi_path, None, false).expect("Should import XMI");
+        assert_eq!(import_result.element_count, 2);
+
+        // Export from host back to XMI
+        let roundtrip_xmi = export_from_host(&mut host, "xmi", false).expect("Should export XMI");
+
+        let roundtrip_str = String::from_utf8(roundtrip_xmi).expect("Should be valid UTF-8");
+
+        // Verify the original IDs are preserved
+        assert!(
+            roundtrip_str.contains("pkg-uuid-12345"),
+            "Package ID should be preserved. Got:\n{}",
+            roundtrip_str
+        );
+        assert!(
+            roundtrip_str.contains("part-uuid-67890"),
+            "Part ID should be preserved. Got:\n{}",
+            roundtrip_str
+        );
+    }
 }
