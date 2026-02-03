@@ -78,6 +78,11 @@ struct Cli {
     #[arg(long)]
     decompile: bool,
 
+    /// Include standard library in export (self-contained output)
+    #[cfg(feature = "interchange")]
+    #[arg(long)]
+    self_contained: bool,
+
     /// Write output to file instead of stdout
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
@@ -192,7 +197,7 @@ fn main() -> ExitCode {
                         InterchangeFormat::JsonLd => "jsonld",
                     };
 
-                    match export_from_host(&mut host, format_str, cli.verbose) {
+                    match export_from_host(&mut host, format_str, cli.verbose, cli.self_contained) {
                         Ok(bytes) => {
                             write_bytes_output(&bytes, cli.output.as_ref());
                             return ExitCode::SUCCESS;
@@ -241,6 +246,7 @@ fn main() -> ExitCode {
             cli.verbose,
             !cli.no_stdlib,
             cli.stdlib_path.as_deref(),
+            cli.self_contained,
         ) {
             Ok(bytes) => {
                 write_bytes_output(&bytes, cli.output.as_ref());

@@ -874,7 +874,7 @@ mod interchange_tests {
         writeln!(file, "package TestPackage;").unwrap();
 
         let xmi_bytes =
-            export_model(&file_path, "xmi", false, false, None).expect("Should export XMI");
+            export_model(&file_path, "xmi", false, false, None, false).expect("Should export XMI");
 
         // Verify it's valid XML
         let xmi_str = String::from_utf8(xmi_bytes).expect("Should be valid UTF-8");
@@ -894,8 +894,8 @@ mod interchange_tests {
         let mut file = fs::File::create(&file_path).unwrap();
         writeln!(file, "package TestPackage;").unwrap();
 
-        let kpar_bytes =
-            export_model(&file_path, "kpar", false, false, None).expect("Should export KPAR");
+        let kpar_bytes = export_model(&file_path, "kpar", false, false, None, false)
+            .expect("Should export KPAR");
 
         // Verify it starts with ZIP magic number (PK)
         assert!(kpar_bytes.len() > 2, "Should have content");
@@ -910,8 +910,8 @@ mod interchange_tests {
         let mut file = fs::File::create(&file_path).unwrap();
         writeln!(file, "package TestPackage;").unwrap();
 
-        let jsonld_bytes =
-            export_model(&file_path, "jsonld", false, false, None).expect("Should export JSON-LD");
+        let jsonld_bytes = export_model(&file_path, "jsonld", false, false, None, false)
+            .expect("Should export JSON-LD");
 
         // Verify it's valid JSON
         let jsonld_str = String::from_utf8(jsonld_bytes).expect("Should be valid UTF-8");
@@ -927,7 +927,7 @@ mod interchange_tests {
         let mut file = fs::File::create(&file_path).unwrap();
         writeln!(file, "package Test;").unwrap();
 
-        let result = export_model(&file_path, "invalid", false, false, None);
+        let result = export_model(&file_path, "invalid", false, false, None, false);
         assert!(result.is_err(), "Should fail with invalid format");
     }
 
@@ -998,7 +998,8 @@ mod interchange_tests {
         assert_eq!(import_result.element_count, 2);
 
         // Export from host back to XMI
-        let roundtrip_xmi = export_from_host(&mut host, "xmi", false).expect("Should export XMI");
+        let roundtrip_xmi =
+            export_from_host(&mut host, "xmi", false, true).expect("Should export XMI");
 
         let roundtrip_str = String::from_utf8(roundtrip_xmi).expect("Should be valid UTF-8");
 
@@ -1012,6 +1013,348 @@ mod interchange_tests {
             roundtrip_str.contains("part-uuid-67890"),
             "Part ID should be preserved. Got:\n{}",
             roundtrip_str
+        );
+    }
+
+    /// Test that exporting a file that references stdlib Real type works correctly.
+    #[test]
+    fn test_export_with_stdlib_real_reference() {
+        use std::process::Command;
+        use syster_cli::export_model;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a SysML file that references Real from the stdlib
+        let sysml_path = temp_dir.path().join("model.sysml");
+        let sysml_content = r#"package TestModel {
+    attribute def Temperature :> ScalarValues::Real;
+    part def Sensor {
+        attribute temp : Temperature;
+    }
+}"#;
+        fs::write(&sysml_path, sysml_content).unwrap();
+
+        // Try to use the local stdlib first, otherwise clone from GitHub
+        let local_stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("base/sysml.library");
+
+        let stdlib_dir = if local_stdlib.exists() {
+            local_stdlib
+        } else {
+            // Clone the stdlib from GitHub into the temp directory
+            let stdlib_clone_dir = temp_dir.path().join("sysml-release");
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    "https://github.com/Systems-Modeling/SysML-v2-Release.git",
+                    stdlib_clone_dir.to_str().unwrap(),
+                ])
+                .status()
+                .expect("Failed to run git clone");
+
+            if !status.success() {
+                panic!("Failed to clone SysML-v2-Release repository");
+            }
+
+            stdlib_clone_dir.join("sysml.library")
+        };
+
+        // Export with stdlib
+        let xmi_bytes = export_model(&sysml_path, "xmi", false, true, Some(&stdlib_dir), false)
+            .expect("Should export XMI with stdlib reference");
+
+        let xmi_str = String::from_utf8(xmi_bytes).expect("Should be valid UTF-8");
+
+        // Verify the export contains our model elements
+        assert!(
+            xmi_str.contains("TestModel"),
+            "Should contain TestModel package"
+        );
+        assert!(
+            xmi_str.contains("Temperature"),
+            "Should contain Temperature attribute def"
+        );
+        assert!(xmi_str.contains("Sensor"), "Should contain Sensor part def");
+        assert!(xmi_str.contains("temp"), "Should contain temp attribute");
+
+        // Verify it's valid XMI structure
+        assert!(
+            xmi_str.contains("xmi:XMI"),
+            "Should be valid XMI with namespace"
+        );
+        assert!(
+            xmi_str.contains("xmlns:sysml"),
+            "Should have SysML namespace"
+        );
+    }
+
+    /// Test that exporting to JSON-LD format works with stdlib references.
+    #[test]
+    fn test_export_jsonld_with_stdlib_reference() {
+        use std::process::Command;
+        use syster_cli::export_model;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a SysML file that references Real from the stdlib
+        let sysml_path = temp_dir.path().join("model.sysml");
+        let sysml_content = r#"package SensorSystem {
+    import ScalarValues::*;
+    
+    attribute def Voltage :> Real;
+    
+    part def VoltageSensor {
+        attribute reading : Voltage;
+        attribute maxVoltage : Voltage;
+    }
+}"#;
+        fs::write(&sysml_path, sysml_content).unwrap();
+
+        // Try to use the local stdlib first, otherwise clone from GitHub
+        let local_stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("base/sysml.library");
+
+        let stdlib_dir = if local_stdlib.exists() {
+            local_stdlib
+        } else {
+            let stdlib_clone_dir = temp_dir.path().join("sysml-release");
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    "https://github.com/Systems-Modeling/SysML-v2-Release.git",
+                    stdlib_clone_dir.to_str().unwrap(),
+                ])
+                .status()
+                .expect("Failed to run git clone");
+
+            if !status.success() {
+                panic!("Failed to clone SysML-v2-Release repository");
+            }
+
+            stdlib_clone_dir.join("sysml.library")
+        };
+
+        // Export to JSON-LD
+        let jsonld_bytes = export_model(
+            &sysml_path,
+            "json-ld",
+            false,
+            true,
+            Some(&stdlib_dir),
+            false,
+        )
+        .expect("Should export JSON-LD with stdlib reference");
+
+        let jsonld_str = String::from_utf8(jsonld_bytes).expect("Should be valid UTF-8");
+
+        // Print the JSON-LD output for inspection
+        println!(
+            "=== JSON-LD Output ===\n{}\n=== End JSON-LD ===",
+            jsonld_str
+        );
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value =
+            serde_json::from_str(&jsonld_str).expect("Should be valid JSON");
+
+        // Verify it has JSON-LD context
+        assert!(
+            parsed.get("@context").is_some() || jsonld_str.contains("@context"),
+            "Should have JSON-LD @context"
+        );
+
+        // Verify the export contains our model elements
+        assert!(
+            jsonld_str.contains("SensorSystem"),
+            "Should contain SensorSystem package"
+        );
+        assert!(
+            jsonld_str.contains("Voltage"),
+            "Should contain Voltage attribute def"
+        );
+        assert!(
+            jsonld_str.contains("VoltageSensor"),
+            "Should contain VoltageSensor part def"
+        );
+    }
+
+    /// Test that exporting to KPAR (ZIP archive) format works with stdlib references.
+    #[test]
+    fn test_export_kpar_with_stdlib_reference() {
+        use std::process::Command;
+        use syster_cli::export_model;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a SysML file with multiple definitions
+        let sysml_path = temp_dir.path().join("model.sysml");
+        let sysml_content = r#"package VehicleSystem {
+    import ScalarValues::*;
+    
+    attribute def Speed :> Real;
+    attribute def Mass :> Real;
+    
+    part def Vehicle {
+        attribute currentSpeed : Speed;
+        attribute totalMass : Mass;
+    }
+    
+    part def Car :> Vehicle {
+        attribute numDoors : Integer;
+    }
+}"#;
+        fs::write(&sysml_path, sysml_content).unwrap();
+
+        // Try to use the local stdlib first, otherwise clone from GitHub
+        let local_stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("base/sysml.library");
+
+        let stdlib_dir = if local_stdlib.exists() {
+            local_stdlib
+        } else {
+            let stdlib_clone_dir = temp_dir.path().join("sysml-release");
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    "https://github.com/Systems-Modeling/SysML-v2-Release.git",
+                    stdlib_clone_dir.to_str().unwrap(),
+                ])
+                .status()
+                .expect("Failed to run git clone");
+
+            if !status.success() {
+                panic!("Failed to clone SysML-v2-Release repository");
+            }
+
+            stdlib_clone_dir.join("sysml.library")
+        };
+
+        // Export to KPAR
+        let kpar_bytes = export_model(&sysml_path, "kpar", false, true, Some(&stdlib_dir), false)
+            .expect("Should export KPAR with stdlib reference");
+
+        // Verify it's a valid ZIP file (check magic bytes)
+        assert!(kpar_bytes.len() > 4, "Should have content");
+        assert_eq!(
+            &kpar_bytes[0..2],
+            b"PK",
+            "Should be a ZIP file (PK magic bytes)"
+        );
+
+        // Verify it has reasonable size (should contain XMI data)
+        assert!(
+            kpar_bytes.len() > 1000,
+            "KPAR should contain substantial data"
+        );
+    }
+
+    /// Test that export filters out stdlib by default, but includes it with self_contained=true.
+    ///
+    /// Run with: cargo test --features interchange test_export_filters_stdlib -- --nocapture
+    #[test]
+    fn test_export_filters_stdlib() {
+        use std::process::Command;
+        use syster_cli::export_model;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a simple SysML file that uses stdlib types (Real)
+        let sysml_path = temp_dir.path().join("model.sysml");
+        let sysml_content = r#"package FilterTest {
+    import ISQ::*;
+    
+    attribute def Temperature :> Real;
+    part def Sensor {
+        attribute temp : Temperature;
+    }
+}"#;
+        fs::write(&sysml_path, sysml_content).unwrap();
+
+        // Try to use the local stdlib first, otherwise clone from GitHub
+        let local_stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("base/sysml.library");
+
+        let stdlib_dir = if local_stdlib.exists() {
+            local_stdlib
+        } else {
+            let stdlib_clone_dir = temp_dir.path().join("sysml-release");
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    "https://github.com/Systems-Modeling/SysML-v2-Release.git",
+                    stdlib_clone_dir.to_str().unwrap(),
+                ])
+                .status()
+                .expect("Failed to run git clone");
+
+            if !status.success() {
+                panic!("Failed to clone SysML-v2-Release repository");
+            }
+
+            stdlib_clone_dir.join("sysml.library")
+        };
+
+        // Export WITHOUT self_contained (default) - should NOT include stdlib
+        let filtered_xmi = export_model(&sysml_path, "xmi", false, true, Some(&stdlib_dir), false)
+            .expect("Should export filtered XMI");
+
+        let filtered_str = String::from_utf8(filtered_xmi.clone()).expect("Should be valid UTF-8");
+
+        // Verify our model elements ARE present
+        assert!(
+            filtered_str.contains("FilterTest"),
+            "Should contain FilterTest package"
+        );
+        assert!(
+            filtered_str.contains("Temperature"),
+            "Should contain Temperature"
+        );
+        assert!(filtered_str.contains("Sensor"), "Should contain Sensor");
+
+        // Verify stdlib elements are NOT present (spot check)
+        assert!(
+            !filtered_str.contains("ISQSpaceTime"),
+            "Should NOT contain ISQSpaceTime (stdlib)"
+        );
+        assert!(
+            !filtered_str.contains("ScalarValues"),
+            "Should NOT contain ScalarValues (stdlib)"
+        );
+        assert!(
+            !filtered_str.contains("standard library"),
+            "Should NOT contain 'standard library' markers"
+        );
+
+        // Export WITH self_contained - should include stdlib
+        let full_xmi = export_model(&sysml_path, "xmi", false, true, Some(&stdlib_dir), true)
+            .expect("Should export self-contained XMI");
+
+        let full_str = String::from_utf8(full_xmi.clone()).expect("Should be valid UTF-8");
+
+        // Verify stdlib elements ARE present when self_contained
+        assert!(
+            full_str.contains("FilterTest"),
+            "Should contain FilterTest package"
+        );
+
+        // The self-contained export should be much larger than the filtered one
+        assert!(
+            full_xmi.len() > filtered_xmi.len() * 5,
+            "Self-contained export ({} bytes) should be much larger than filtered ({} bytes)",
+            full_xmi.len(),
+            filtered_xmi.len()
         );
     }
 }

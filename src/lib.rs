@@ -370,6 +370,7 @@ pub fn export_model(
     verbose: bool,
     load_stdlib: bool,
     stdlib_path: Option<&Path>,
+    self_contained: bool,
 ) -> Result<Vec<u8>, String> {
     use syster::interchange::{
         JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
@@ -416,8 +417,34 @@ pub fn export_model(
     // 3. Trigger index rebuild
     let analysis = host.analysis();
 
-    // 4. Get all symbols from the index
-    let symbols: Vec<_> = analysis.symbol_index().all_symbols().cloned().collect();
+    // 4. Get symbols from the index (filtered unless self_contained)
+    let symbols: Vec<_> = if self_contained {
+        // Include all symbols (user model + stdlib)
+        analysis.symbol_index().all_symbols().cloned().collect()
+    } else {
+        // Filter to only user files (exclude stdlib)
+        analysis
+            .symbol_index()
+            .all_symbols()
+            .filter(|sym| {
+                // Get the file path for this symbol and check if it's stdlib
+                if let Some(path) = analysis.get_file_path(sym.file) {
+                    !path.contains("sysml.library")
+                } else {
+                    true // Include if we can't determine the path
+                }
+            })
+            .cloned()
+            .collect()
+    };
+
+    if verbose {
+        println!(
+            "Collecting {} symbols (self_contained={})",
+            symbols.len(),
+            self_contained
+        );
+    }
 
     // 5. Convert to interchange model
     let mut model = model_from_symbols(&symbols);
@@ -452,18 +479,45 @@ pub fn export_model(
 ///
 /// This allows exporting from a pre-populated host (e.g., after import_model_into_host).
 /// Element IDs are preserved from the symbol database.
+///
+/// Set `self_contained` to true to include all symbols (including stdlib),
+/// or false to only include user model symbols.
 #[cfg(feature = "interchange")]
 pub fn export_from_host(
     host: &mut AnalysisHost,
     format: &str,
     verbose: bool,
+    self_contained: bool,
 ) -> Result<Vec<u8>, String> {
     use syster::interchange::{
         JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
     };
 
     let analysis = host.analysis();
-    let symbols: Vec<_> = analysis.symbol_index().all_symbols().cloned().collect();
+    let symbols: Vec<_> = if self_contained {
+        analysis.symbol_index().all_symbols().cloned().collect()
+    } else {
+        analysis
+            .symbol_index()
+            .all_symbols()
+            .filter(|sym| {
+                if let Some(path) = analysis.get_file_path(sym.file) {
+                    !path.contains("sysml.library")
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect()
+    };
+
+    if verbose {
+        println!(
+            "Collecting {} symbols (self_contained={})",
+            symbols.len(),
+            self_contained
+        );
+    }
 
     let mut model = model_from_symbols(&symbols);
     model = restore_ids_from_symbols(model, analysis.symbol_index());
