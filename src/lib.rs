@@ -579,7 +579,7 @@ pub fn import_model_into_host(
     format: Option<&str>,
     verbose: bool,
 ) -> Result<ImportResult, String> {
-    use syster::interchange::{JsonLd, Kpar, ModelFormat, Xmi, detect_format, symbols_from_model};
+    use syster::interchange::{JsonLd, Kpar, ModelFormat, Xmi, detect_format};
 
     // Read the input file
     let bytes =
@@ -620,30 +620,35 @@ pub fn import_model_into_host(
         }
     };
 
-    // Convert model to symbols
-    let symbols = symbols_from_model(&model);
-    let symbol_count = symbols.len();
+    let element_count = model.elements.len();
+    let relationship_count = model.relationships.len();
 
     if verbose {
         println!(
-            "Converted {} elements to {} symbols",
-            model.elements.len(),
-            symbol_count
+            "Parsed {} elements and {} relationships",
+            element_count,
+            relationship_count
         );
     }
 
-    // Add symbols to host
-    host.add_symbols_from_model(symbols);
+    // Add model to host using the new add_model API
+    // This decompiles the model to SysML and parses it, preserving element IDs
+    let virtual_path = input.to_string_lossy().to_string() + ".sysml";
+    let errors = host.add_model(&model, &virtual_path);
 
     if verbose {
-        println!("Loaded symbols into workspace with preserved element IDs");
+        if errors.is_empty() {
+            println!("Loaded model into workspace with preserved element IDs");
+        } else {
+            println!("Loaded model with {} parse warnings", errors.len());
+        }
     }
 
     Ok(ImportResult {
-        element_count: model.elements.len(),
-        relationship_count: model.relationships.len(),
-        error_count: 0,
-        messages: vec![format!("Successfully imported {} symbols", symbol_count)],
+        element_count,
+        relationship_count,
+        error_count: errors.len(),
+        messages: vec![format!("Successfully imported {} elements", element_count)],
     })
 }
 
