@@ -628,8 +628,7 @@ pub fn import_model_into_host(
     if verbose {
         println!(
             "Parsed {} elements and {} relationships",
-            element_count,
-            relationship_count
+            element_count, relationship_count
         );
     }
 

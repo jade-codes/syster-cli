@@ -709,7 +709,7 @@ fn test_export_ast_single_file() {
 
     // Check Vehicle symbol
     let vehicle = symbols.iter().find(|s| s["name"] == "Vehicle").unwrap();
-    assert_eq!(vehicle["kind"], "PartDef");
+    assert_eq!(vehicle["kind"], "PartDefinition");
     assert_eq!(vehicle["qualified_name"], "Vehicle");
 }
 
@@ -1581,7 +1581,10 @@ mod interchange_tests {
         println!("=== YAML Output ===\n{}\n=== End YAML ===", yaml_str);
 
         // Verify YAML structure - basic types
-        assert!(yaml_str.contains("'@type': Package"), "Should have Package type");
+        assert!(
+            yaml_str.contains("'@type': Package"),
+            "Should have Package type"
+        );
         assert!(
             yaml_str.contains("'@type': PartDefinition"),
             "Should have PartDefinition type"
@@ -1662,15 +1665,12 @@ mod interchange_tests {
         );
 
         // Verify ownership structure
-        assert!(
-            yaml_str.contains("owner:"),
-            "Should have owner references"
-        );
+        assert!(yaml_str.contains("owner:"), "Should have owner references");
         assert!(
             yaml_str.contains("ownedMember:"),
             "Should have ownedMember arrays"
         );
-        
+
         // Verify qualified names are present
         assert!(
             yaml_str.contains("qualifiedName: AutomotiveSystem::Vehicle"),
@@ -1680,13 +1680,13 @@ mod interchange_tests {
             yaml_str.contains("qualifiedName: AutomotiveSystem::Engine"),
             "Should have qualified name for Engine"
         );
-        
+
         // Verify stdlib import is present
         assert!(
             yaml_str.contains("name: ScalarValues"),
             "Should contain ScalarValues import"
         );
-        
+
         // Verify specialization of Real is captured
         // Mass, Velocity, Temperature all specialize Real from ScalarValues
         assert!(
@@ -1713,14 +1713,14 @@ mod interchange_tests {
         let model = Yaml
             .read(yaml_str.as_bytes())
             .expect("Should parse YAML back");
-        
+
         // Complex model should have many elements
         assert!(
             model.elements.len() >= 20,
             "Should have at least 20 elements, got {}",
             model.elements.len()
         );
-        
+
         // Print element count by type for inspection
         println!("Total elements in YAML model: {}", model.elements.len());
     }
