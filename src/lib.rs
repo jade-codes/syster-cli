@@ -373,7 +373,7 @@ pub fn export_model(
     self_contained: bool,
 ) -> Result<Vec<u8>, String> {
     use syster::interchange::{
-        JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
+        JsonLd, Kpar, ModelFormat, Xmi, Yaml, model_from_symbols, restore_ids_from_symbols,
     };
 
     let mut host = AnalysisHost::new();
@@ -468,8 +468,9 @@ pub fn export_model(
         "xmi" => Xmi.write(&model).map_err(|e| e.to_string()),
         "kpar" => Kpar.write(&model).map_err(|e| e.to_string()),
         "jsonld" | "json-ld" => JsonLd.write(&model).map_err(|e| e.to_string()),
+        "yaml" | "yml" => Yaml.write(&model).map_err(|e| e.to_string()),
         _ => Err(format!(
-            "Unsupported format: {}. Use xmi, kpar, or jsonld.",
+            "Unsupported format: {}. Use xmi, kpar, jsonld, or yaml.",
             format
         )),
     }
@@ -490,7 +491,7 @@ pub fn export_from_host(
     self_contained: bool,
 ) -> Result<Vec<u8>, String> {
     use syster::interchange::{
-        JsonLd, Kpar, ModelFormat, Xmi, model_from_symbols, restore_ids_from_symbols,
+        JsonLd, Kpar, ModelFormat, Xmi, Yaml, model_from_symbols, restore_ids_from_symbols,
     };
 
     let analysis = host.analysis();
@@ -534,8 +535,9 @@ pub fn export_from_host(
         "xmi" => Xmi.write(&model).map_err(|e| e.to_string()),
         "kpar" => Kpar.write(&model).map_err(|e| e.to_string()),
         "jsonld" | "json-ld" => JsonLd.write(&model).map_err(|e| e.to_string()),
+        "yaml" | "yml" => Yaml.write(&model).map_err(|e| e.to_string()),
         _ => Err(format!(
-            "Unsupported format: {}. Use xmi, kpar, or jsonld.",
+            "Unsupported format: {}. Use xmi, kpar, jsonld, or yaml.",
             format
         )),
     }
@@ -626,8 +628,7 @@ pub fn import_model_into_host(
     if verbose {
         println!(
             "Parsed {} elements and {} relationships",
-            element_count,
-            relationship_count
+            element_count, relationship_count
         );
     }
 

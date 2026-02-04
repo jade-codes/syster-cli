@@ -5,6 +5,21 @@ All notable changes to syster-cli will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **YAML export format**: New `--export yaml` option for human-readable model interchange
+- **Enhanced interchange support**: Improved import/export capabilities for XMI, JSON-LD, KPAR formats
+- **Decompile command**: `--decompile` option to convert XMI/JSON-LD back to SysML text with metadata
+- **Import workspace**: `--import-workspace` flag to load interchange files for analysis with preserved element IDs
+- **Self-contained export**: `--self-contained` flag to include stdlib in exports
+- Updated README with comprehensive export format examples and documentation
+
+### Changed
+
+- **syster-base**: Using local path dependency for development
+
 ## [0.3.0-alpha] - 2026-02-03
 
 ### Changed

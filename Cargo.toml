@@ -1,6 +1,6 @@
 [package]
 name = "syster-cli"
-version = "0.3.0-alpha"
+version = "0.3.1-alpha"
 edition = "2024"
 rust-version = "1.85"
 authors = ["jade-codes"]
@@ -21,7 +21,7 @@ name = "syster_cli"
 path = "src/lib.rs"
 
 [dependencies]
-syster-base = "0.3.0-alpha"
+syster-base = "0.3.1-alpha"
 clap = { version = "4", features = ["derive"] }
 walkdir = "2"
 serde = { version = "1", features = ["derive"] }

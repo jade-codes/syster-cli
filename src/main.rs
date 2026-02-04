@@ -27,6 +27,8 @@ enum InterchangeFormat {
     Kpar,
     /// JSON-LD
     JsonLd,
+    /// YAML
+    Yaml,
 }
 
 #[derive(Parser)]
@@ -195,6 +197,7 @@ fn main() -> ExitCode {
                         InterchangeFormat::Xmi => "xmi",
                         InterchangeFormat::Kpar => "kpar",
                         InterchangeFormat::JsonLd => "jsonld",
+                        InterchangeFormat::Yaml => "yaml",
                     };
 
                     match export_from_host(&mut host, format_str, cli.verbose, cli.self_contained) {
@@ -238,6 +241,7 @@ fn main() -> ExitCode {
             InterchangeFormat::Xmi => "xmi",
             InterchangeFormat::Kpar => "kpar",
             InterchangeFormat::JsonLd => "jsonld",
+            InterchangeFormat::Yaml => "yaml",
         };
 
         match export_model(

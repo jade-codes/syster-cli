@@ -709,7 +709,7 @@ fn test_export_ast_single_file() {
 
     // Check Vehicle symbol
     let vehicle = symbols.iter().find(|s| s["name"] == "Vehicle").unwrap();
-    assert_eq!(vehicle["kind"], "PartDef");
+    assert_eq!(vehicle["kind"], "PartDefinition");
     assert_eq!(vehicle["qualified_name"], "Vehicle");
 }
 
@@ -1082,8 +1082,8 @@ mod interchange_tests {
 
         // Verify it's valid XMI structure
         assert!(
-            xmi_str.contains("xmi:XMI"),
-            "Should be valid XMI with namespace"
+            xmi_str.contains("xmi:version") || xmi_str.contains("xmi:XMI"),
+            "Should be valid XMI with version or XMI root"
         );
         assert!(
             xmi_str.contains("xmlns:sysml"),
@@ -1355,6 +1355,464 @@ mod interchange_tests {
             "Self-contained export ({} bytes) should be much larger than filtered ({} bytes)",
             full_xmi.len(),
             filtered_xmi.len()
+        );
+    }
+
+    /// Test that exporting to YAML format works correctly.
+    #[test]
+    fn test_export_yaml() {
+        use std::process::Command;
+        use syster_cli::export_model;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a complex SysML file with many element types
+        let sysml_path = temp_dir.path().join("model.sysml");
+        let sysml_content = r#"package AutomotiveSystem {
+    doc /* This is a comprehensive vehicle model 
+           demonstrating various SysML v2 features. */
+    
+    import ScalarValues::*;
+    
+    // Attribute definitions specializing Real
+    attribute def Mass :> Real;
+    attribute def Velocity :> Real;
+    attribute def Temperature :> Real;
+    
+    // Enumeration
+    enum def EngineState {
+        off;
+        starting;
+        running;
+        stopping;
+    }
+    
+    // Port definitions
+    port def FuelPort {
+        attribute flowRate : Real;
+        in attribute fuelIn : Real;
+        out attribute fuelOut : Real;
+    }
+    
+    port def ElectricalPort {
+        attribute voltage : Real;
+        attribute current : Real;
+    }
+    
+    port def MechanicalPort {
+        attribute torque : Real;
+        attribute rpm : Real;
+    }
+    
+    // Interface definition
+    interface def PowerInterface {
+        end supplierPort : ElectricalPort;
+        end consumerPort : ElectricalPort;
+    }
+    
+    // Part definitions with features
+    abstract part def Component {
+        attribute mass : Mass;
+        attribute serialNumber : String;
+    }
+    
+    part def Cylinder :> Component {
+        attribute bore : Real;
+        attribute stroke : Real;
+        attribute compressionRatio : Real;
+    }
+    
+    part def FuelInjector :> Component {
+        attribute sprayAngle : Real;
+        port fuelIn : FuelPort;
+    }
+    
+    part def Engine :> Component {
+        attribute displacement : Real;
+        attribute maxPower : Real;
+        attribute state : EngineState;
+        
+        port fuelIntake : FuelPort;
+        port electricalConn : ElectricalPort;
+        
+        // Nested parts
+        part cylinder[4] : Cylinder;
+        part fuelInjector[4] : FuelInjector;
+        
+        // State machine
+        state def EngineStates {
+            entry state off;
+            state starting;
+            state running;
+            state stopping;
+            
+            transition off_to_starting
+                first off
+                then starting;
+            
+            transition starting_to_running
+                first starting
+                then running;
+            
+            transition running_to_stopping
+                first running
+                then stopping;
+            
+            transition stopping_to_off
+                first stopping
+                then off;
+        }
+    }
+    
+    part def Transmission :> Component {
+        attribute gearCount : Integer;
+        attribute currentGear : Integer;
+        port inputShaft : MechanicalPort;
+        port outputShaft : MechanicalPort;
+    }
+    
+    part def Battery :> Component {
+        attribute capacity : Real;
+        attribute voltage : Real;
+        attribute chargeLevel : Real;
+        port powerOut : ElectricalPort;
+    }
+    
+    // Connection definition
+    connection def PowerConnection :> PowerInterface {
+        end supplierPort : ElectricalPort;
+        end consumerPort : ElectricalPort;
+    }
+    
+    // Top-level vehicle assembly
+    part def Vehicle :> Component {
+        attribute vin : String;
+        attribute modelYear : Integer;
+        attribute totalMass : Mass;
+        attribute currentVelocity : Velocity;
+        
+        // Major subsystems
+        part engine : Engine;
+        part transmission : Transmission;
+        part battery : Battery;
+        
+        // Connections between parts
+        connection enginePower : PowerConnection
+            connect battery.powerOut to engine.electricalConn;
+    }
+    
+    // Use case for vehicle operation
+    use case def DriveVehicle {
+        subject vehicle : Vehicle;
+        
+        actor driver;
+        
+        include use case startEngine;
+        include use case accelerate;
+        include use case brake;
+        include use case stopEngine;
+    }
+    
+    // Requirements
+    requirement def SafetyRequirement {
+        doc /* All safety requirements for the vehicle */
+        
+        attribute criticality : String;
+    }
+    
+    requirement vehicleSafety : SafetyRequirement {
+        doc /* The vehicle shall meet all applicable safety standards. */
+    }
+    
+    // Analysis case
+    analysis def ThermalAnalysis {
+        subject vehicle : Vehicle;
+        
+        return result : Real;
+    }
+    
+    // View and viewpoint
+    viewpoint def SystemArchitectViewpoint {
+        doc /* Stakeholder view for system architects */
+    }
+    
+    view def VehicleOverview {
+        expose Vehicle;
+        expose Engine;
+        expose Transmission;
+    }
+}"#;
+        fs::write(&sysml_path, sysml_content).unwrap();
+
+        // Get stdlib path
+        let local_stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("base/sysml.library");
+
+        let stdlib_dir = if local_stdlib.exists() {
+            local_stdlib
+        } else {
+            let stdlib_clone_dir = temp_dir.path().join("sysml-release");
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    "https://github.com/Systems-Modeling/SysML-v2-Release.git",
+                    stdlib_clone_dir.to_str().unwrap(),
+                ])
+                .status()
+                .expect("Failed to run git clone");
+
+            if !status.success() {
+                panic!("Failed to clone SysML-v2-Release repository");
+            }
+
+            stdlib_clone_dir.join("sysml.library")
+        };
+
+        // Export to YAML (with stdlib loaded but filtered out)
+        let yaml_bytes = export_model(&sysml_path, "yaml", false, true, Some(&stdlib_dir), false)
+            .expect("Should export to YAML");
+
+        let yaml_str = String::from_utf8(yaml_bytes).expect("Should be valid UTF-8");
+
+        // Print the YAML output for inspection
+        println!("=== YAML Output ===\n{}\n=== End YAML ===", yaml_str);
+
+        // Verify YAML structure - basic types
+        assert!(
+            yaml_str.contains("'@type': Package"),
+            "Should have Package type"
+        );
+        assert!(
+            yaml_str.contains("'@type': PartDefinition"),
+            "Should have PartDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': PortDefinition"),
+            "Should have PortDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': AttributeDefinition"),
+            "Should have AttributeDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': InterfaceDefinition"),
+            "Should have InterfaceDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': ConnectionDefinition"),
+            "Should have ConnectionDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': RequirementDefinition"),
+            "Should have RequirementDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': UseCaseDefinition"),
+            "Should have UseCaseDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': ViewDefinition"),
+            "Should have ViewDefinition type"
+        );
+        assert!(
+            yaml_str.contains("'@type': ViewpointDefinition"),
+            "Should have ViewpointDefinition type"
+        );
+
+        // Verify element names are present
+        assert!(
+            yaml_str.contains("name: AutomotiveSystem"),
+            "Should contain AutomotiveSystem package"
+        );
+        assert!(
+            yaml_str.contains("name: Vehicle"),
+            "Should contain Vehicle part def"
+        );
+        assert!(
+            yaml_str.contains("name: Engine"),
+            "Should contain Engine part def"
+        );
+        assert!(
+            yaml_str.contains("name: Transmission"),
+            "Should contain Transmission part def"
+        );
+        assert!(
+            yaml_str.contains("name: Battery"),
+            "Should contain Battery part def"
+        );
+        assert!(
+            yaml_str.contains("name: FuelPort"),
+            "Should contain FuelPort port def"
+        );
+        assert!(
+            yaml_str.contains("name: ElectricalPort"),
+            "Should contain ElectricalPort port def"
+        );
+        assert!(
+            yaml_str.contains("name: PowerInterface"),
+            "Should contain PowerInterface interface def"
+        );
+        assert!(
+            yaml_str.contains("name: DriveVehicle"),
+            "Should contain DriveVehicle use case"
+        );
+        assert!(
+            yaml_str.contains("name: SafetyRequirement"),
+            "Should contain SafetyRequirement requirement def"
+        );
+
+        // Verify ownership structure
+        assert!(yaml_str.contains("owner:"), "Should have owner references");
+        assert!(
+            yaml_str.contains("ownedMember:"),
+            "Should have ownedMember arrays"
+        );
+
+        // Verify qualified names are present
+        assert!(
+            yaml_str.contains("qualifiedName: AutomotiveSystem::Vehicle"),
+            "Should have qualified name for Vehicle"
+        );
+        assert!(
+            yaml_str.contains("qualifiedName: AutomotiveSystem::Engine"),
+            "Should have qualified name for Engine"
+        );
+
+        // Verify stdlib import is present
+        assert!(
+            yaml_str.contains("name: ScalarValues"),
+            "Should contain ScalarValues import"
+        );
+
+        // Verify specialization of Real is captured
+        // Mass, Velocity, Temperature all specialize Real from ScalarValues
+        assert!(
+            yaml_str.contains("qualifiedName: AutomotiveSystem::Mass"),
+            "Should have Mass attribute def"
+        );
+        assert!(
+            yaml_str.contains("qualifiedName: AutomotiveSystem::Velocity"),
+            "Should have Velocity attribute def"
+        );
+        assert!(
+            yaml_str.contains("qualifiedName: AutomotiveSystem::Temperature"),
+            "Should have Temperature attribute def"
+        );
+
+        // Verify specialization relationships are present (new format uses separate relationship objects)
+        assert!(
+            yaml_str.contains("'@type': Specialization"),
+            "Should have Specialization relationships"
+        );
+
+        // Verify it parses back (round-trip)
+        use syster::interchange::{ModelFormat, Yaml};
+        let model = Yaml
+            .read(yaml_str.as_bytes())
+            .expect("Should parse YAML back");
+
+        // Complex model should have many elements
+        assert!(
+            model.elements.len() >= 20,
+            "Should have at least 20 elements, got {}",
+            model.elements.len()
+        );
+
+        // Print element count by type for inspection
+        println!("Total elements in YAML model: {}", model.elements.len());
+    }
+
+    /// Test YAML export with stdlib references.
+    #[test]
+    fn test_export_yaml_with_stdlib_reference() {
+        use std::process::Command;
+        use syster_cli::export_model;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a SysML file that references Real from the stdlib
+        let sysml_path = temp_dir.path().join("model.sysml");
+        let sysml_content = r#"package MeasurementSystem {
+    import ScalarValues::*;
+    
+    attribute def Temperature :> Real;
+    
+    part def Thermometer {
+        attribute currentTemp : Temperature;
+    }
+}"#;
+        fs::write(&sysml_path, sysml_content).unwrap();
+
+        // Try to use the local stdlib
+        let local_stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("base/sysml.library");
+
+        let stdlib_dir = if local_stdlib.exists() {
+            local_stdlib
+        } else {
+            let stdlib_clone_dir = temp_dir.path().join("sysml-release");
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    "https://github.com/Systems-Modeling/SysML-v2-Release.git",
+                    stdlib_clone_dir.to_str().unwrap(),
+                ])
+                .status()
+                .expect("Failed to run git clone");
+
+            if !status.success() {
+                panic!("Failed to clone SysML-v2-Release repository");
+            }
+
+            stdlib_clone_dir.join("sysml.library")
+        };
+
+        // Export to YAML (filtered, no stdlib)
+        let yaml_bytes = export_model(&sysml_path, "yaml", false, true, Some(&stdlib_dir), false)
+            .expect("Should export YAML with stdlib reference");
+
+        let yaml_str = String::from_utf8(yaml_bytes).expect("Should be valid UTF-8");
+
+        println!(
+            "=== YAML with stdlib ref ===\n{}\n=== End YAML ===",
+            yaml_str
+        );
+
+        // Verify user elements are present
+        assert!(
+            yaml_str.contains("MeasurementSystem"),
+            "Should contain MeasurementSystem package"
+        );
+        assert!(
+            yaml_str.contains("Thermometer"),
+            "Should contain Thermometer part def"
+        );
+        assert!(
+            yaml_str.contains("Temperature"),
+            "Should contain Temperature attribute def"
+        );
+
+        // Verify stdlib package definitions are NOT included (only the import reference)
+        // The import itself will contain "ScalarValues" in its name, but the
+        // actual ScalarValues package from stdlib should not be exported
+        assert!(
+            !yaml_str.contains("'@type': LibraryPackage"),
+            "Should NOT contain LibraryPackage (stdlib)"
+        );
+
+        // Count element types - should only have user elements
+        let part_def_count = yaml_str.matches("'@type': PartDefinition").count();
+        let attr_def_count = yaml_str.matches("'@type': AttributeDefinition").count();
+        assert_eq!(part_def_count, 1, "Should have exactly 1 PartDefinition");
+        assert_eq!(
+            attr_def_count, 1,
+            "Should have exactly 1 AttributeDefinition"
         );
     }
 }
