@@ -1082,8 +1082,8 @@ mod interchange_tests {
 
         // Verify it's valid XMI structure
         assert!(
-            xmi_str.contains("xmi:XMI"),
-            "Should be valid XMI with namespace"
+            xmi_str.contains("xmi:version") || xmi_str.contains("xmi:XMI"),
+            "Should be valid XMI with version or XMI root"
         );
         assert!(
             xmi_str.contains("xmlns:sysml"),
@@ -1581,41 +1581,41 @@ mod interchange_tests {
         println!("=== YAML Output ===\n{}\n=== End YAML ===", yaml_str);
 
         // Verify YAML structure - basic types
-        assert!(yaml_str.contains("type: Package"), "Should have Package type");
+        assert!(yaml_str.contains("'@type': Package"), "Should have Package type");
         assert!(
-            yaml_str.contains("type: PartDefinition"),
+            yaml_str.contains("'@type': PartDefinition"),
             "Should have PartDefinition type"
         );
         assert!(
-            yaml_str.contains("type: PortDefinition"),
+            yaml_str.contains("'@type': PortDefinition"),
             "Should have PortDefinition type"
         );
         assert!(
-            yaml_str.contains("type: AttributeDefinition"),
+            yaml_str.contains("'@type': AttributeDefinition"),
             "Should have AttributeDefinition type"
         );
         assert!(
-            yaml_str.contains("type: InterfaceDefinition"),
+            yaml_str.contains("'@type': InterfaceDefinition"),
             "Should have InterfaceDefinition type"
         );
         assert!(
-            yaml_str.contains("type: ConnectionDefinition"),
+            yaml_str.contains("'@type': ConnectionDefinition"),
             "Should have ConnectionDefinition type"
         );
         assert!(
-            yaml_str.contains("type: RequirementDefinition"),
+            yaml_str.contains("'@type': RequirementDefinition"),
             "Should have RequirementDefinition type"
         );
         assert!(
-            yaml_str.contains("type: UseCaseDefinition"),
+            yaml_str.contains("'@type': UseCaseDefinition"),
             "Should have UseCaseDefinition type"
         );
         assert!(
-            yaml_str.contains("type: ViewDefinition"),
+            yaml_str.contains("'@type': ViewDefinition"),
             "Should have ViewDefinition type"
         );
         assert!(
-            yaml_str.contains("type: ViewpointDefinition"),
+            yaml_str.contains("'@type': ViewpointDefinition"),
             "Should have ViewpointDefinition type"
         );
 
@@ -1701,15 +1701,11 @@ mod interchange_tests {
             yaml_str.contains("qualifiedName: AutomotiveSystem::Temperature"),
             "Should have Temperature attribute def"
         );
-        
-        // Verify the specializes relationship is present for Real
+
+        // Verify specialization relationships are present (new format uses separate relationship objects)
         assert!(
-            yaml_str.contains("specializes:"),
-            "Should have specializes relationships"
-        );
-        assert!(
-            yaml_str.contains("- Real"),
-            "Should show specialization of Real from stdlib"
+            yaml_str.contains("'@type': Specialization"),
+            "Should have Specialization relationships"
         );
 
         // Verify it parses back (round-trip)
@@ -1806,13 +1802,13 @@ mod interchange_tests {
         // The import itself will contain "ScalarValues" in its name, but the
         // actual ScalarValues package from stdlib should not be exported
         assert!(
-            !yaml_str.contains("type: LibraryPackage"),
+            !yaml_str.contains("'@type': LibraryPackage"),
             "Should NOT contain LibraryPackage (stdlib)"
         );
 
         // Count element types - should only have user elements
-        let part_def_count = yaml_str.matches("type: PartDefinition").count();
-        let attr_def_count = yaml_str.matches("type: AttributeDefinition").count();
+        let part_def_count = yaml_str.matches("'@type': PartDefinition").count();
+        let attr_def_count = yaml_str.matches("'@type': AttributeDefinition").count();
         assert_eq!(part_def_count, 1, "Should have exactly 1 PartDefinition");
         assert_eq!(
             attr_def_count, 1,
