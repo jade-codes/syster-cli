@@ -21,7 +21,7 @@ name = "syster_cli"
 path = "src/lib.rs"
 
 [dependencies]
-syster-base = "0.3.0-alpha"
+syster-base = { path = "../base" }
 clap = { version = "4", features = ["derive"] }
 walkdir = "2"
 serde = { version = "1", features = ["derive"] }
