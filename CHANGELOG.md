@@ -7,18 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **YAML export format**: New `--export yaml` option for human-readable model interchange
-- **Enhanced interchange support**: Improved import/export capabilities for XMI, JSON-LD, KPAR formats
-- **Decompile command**: `--decompile` option to convert XMI/JSON-LD back to SysML text with metadata
-- **Import workspace**: `--import-workspace` flag to load interchange files for analysis with preserved element IDs
-- **Self-contained export**: `--self-contained` flag to include stdlib in exports
-- Updated README with comprehensive export format examples and documentation
+## [0.3.2-alpha] - 2026-02-09
 
 ### Changed
 
-- **syster-base**: Using local path dependency for development
+- **syster-base**: Updated to v0.3.2-alpha with semantic diagnostics API and false positive fixes
 
 ## [0.3.0-alpha] - 2026-02-03
 
