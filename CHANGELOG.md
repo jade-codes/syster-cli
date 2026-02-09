@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **syster-base**: Using local path dependency for development
 
+## [0.3.2-alpha] - 2026-02-09
+
+### Changed
+
+- **syster-base**: Updated to v0.3.2-alpha with semantic diagnostics API and false positive fixes
+
 ## [0.3.0-alpha] - 2026-02-03
 
 ### Changed
