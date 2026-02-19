@@ -7,18 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-alpha] - 2026-02-15
+
 ### Added
 
+- **Semantic model commands**: `--list`, `--query`, `--inspect`, `--rename`, `--add-member`, `--remove-member` for querying and editing models via the CLI
 - **YAML export format**: New `--export yaml` option for human-readable model interchange
-- **Enhanced interchange support**: Improved import/export capabilities for XMI, JSON-LD, KPAR formats
 - **Decompile command**: `--decompile` option to convert XMI/JSON-LD back to SysML text with metadata
 - **Import workspace**: `--import-workspace` flag to load interchange files for analysis with preserved element IDs
 - **Self-contained export**: `--self-contained` flag to include stdlib in exports
-- Updated README with comprehensive export format examples and documentation
+- **Metadata round-trip**: Companion `.metadata.json` files preserve element IDs across rename, add, and remove operations
+- **Import validation**: `--import` now distinguishes errors (exit 1) from warnings (exit 2) and clean imports (exit 0)
+- **Import `_ext_` stub detection**: External reference stubs are reported as warnings, not errors
 
 ### Changed
 
-- **syster-base**: Using local path dependency for development
+- **syster-base**: Updated to v0.4.0-alpha (relationship unification, semantic views, change tracking)
+- Made `load_input` and `load_stdlib_files` public for reuse in tests and downstream tooling
+- Status/diagnostic messages consistently go to stderr; stdout reserved for data output
+- Updated README with semantic editing commands, metadata docs, exit codes, and all CLI options
+- Makefile targets now include `--features interchange` by default
+
+### Fixed
+
+- Removed unused `export_model` import in test suite
+- Fixed clippy warnings for Rust 1.92 (`map_or` → `is_some_and`, `.map(|s| s.clone())` → `.cloned()`)
 
 ## [0.3.2-alpha] - 2026-02-09
 

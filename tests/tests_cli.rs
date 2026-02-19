@@ -1263,7 +1263,6 @@ mod interchange_tests {
     #[test]
     fn test_export_filters_stdlib() {
         use std::process::Command;
-        use syster_cli::export_model;
 
         let temp_dir = TempDir::new().unwrap();
 
@@ -1306,9 +1305,18 @@ mod interchange_tests {
             stdlib_clone_dir.join("sysml.library")
         };
 
+        // Load stdlib once, then export twice via export_from_host to avoid
+        // paying the stdlib parsing cost twice in debug builds.
+        use syster::ide::AnalysisHost;
+        use syster_cli::{export_from_host, load_input, load_stdlib_files};
+
+        let mut host = AnalysisHost::new();
+        load_stdlib_files(&mut host, Some(&stdlib_dir), false).expect("Should load stdlib");
+        load_input(&mut host, &sysml_path, false).expect("Should load input");
+
         // Export WITHOUT self_contained (default) - should NOT include stdlib
-        let filtered_xmi = export_model(&sysml_path, "xmi", false, true, Some(&stdlib_dir), false)
-            .expect("Should export filtered XMI");
+        let filtered_xmi =
+            export_from_host(&mut host, "xmi", false, false).expect("Should export filtered XMI");
 
         let filtered_str = String::from_utf8(filtered_xmi.clone()).expect("Should be valid UTF-8");
 
@@ -1338,7 +1346,7 @@ mod interchange_tests {
         );
 
         // Export WITH self_contained - should include stdlib
-        let full_xmi = export_model(&sysml_path, "xmi", false, true, Some(&stdlib_dir), true)
+        let full_xmi = export_from_host(&mut host, "xmi", false, true)
             .expect("Should export self-contained XMI");
 
         let full_str = String::from_utf8(full_xmi.clone()).expect("Should be valid UTF-8");
@@ -1681,10 +1689,11 @@ mod interchange_tests {
             "Should have qualified name for Engine"
         );
 
-        // Verify stdlib import is present
+        // Verify stdlib import is present (as importedNamespace property on the relationship)
         assert!(
-            yaml_str.contains("name: ScalarValues"),
-            "Should contain ScalarValues import"
+            yaml_str.contains("importedNamespace: ScalarValues"),
+            "Should contain ScalarValues import.\nGot:\n{}",
+            yaml_str
         );
 
         // Verify specialization of Real is captured

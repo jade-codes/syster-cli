@@ -6,6 +6,8 @@ use std::process::ExitCode;
 use syster::hir::Severity;
 use syster_cli::{DiagnosticInfo, export_ast, export_json, run_analysis};
 #[cfg(feature = "interchange")]
+use syster_cli::{add_member, inspect_element, query_model, remove_member, rename_element};
+#[cfg(feature = "interchange")]
 use syster_cli::{decompile_model, export_model, import_model, import_model_into_host};
 
 /// Output format for export commands
@@ -85,6 +87,41 @@ struct Cli {
     #[arg(long)]
     self_contained: bool,
 
+    /// Query model elements by name (substring match)
+    #[cfg(feature = "interchange")]
+    #[arg(long, value_name = "NAME")]
+    query: Option<String>,
+
+    /// List all model elements (use with --kind to filter)
+    #[cfg(feature = "interchange")]
+    #[arg(long)]
+    list: bool,
+
+    /// Filter query results by metaclass kind (e.g., PartDefinition, PartUsage)
+    #[cfg(feature = "interchange")]
+    #[arg(long, value_name = "KIND")]
+    kind: Option<String>,
+
+    /// Inspect a specific element by name or qualified name
+    #[cfg(feature = "interchange")]
+    #[arg(long, value_name = "NAME")]
+    inspect: Option<String>,
+
+    /// Rename an element: --rename OLD=NEW
+    #[cfg(feature = "interchange")]
+    #[arg(long, value_name = "OLD=NEW")]
+    rename: Option<String>,
+
+    /// Add a member to an element: --add-member PARENT:KIND:NAME[:TYPE]
+    #[cfg(feature = "interchange")]
+    #[arg(long, value_name = "PARENT:KIND:NAME[:TYPE]")]
+    add_member: Option<String>,
+
+    /// Remove an element by name or qualified name
+    #[cfg(feature = "interchange")]
+    #[arg(long, value_name = "NAME")]
+    remove_member: Option<String>,
+
     /// Write output to file instead of stdout
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
@@ -94,7 +131,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     if cli.verbose {
-        println!("Analyzing: {}", cli.input.display());
+        eprintln!("Analyzing: {}", cli.input.display());
     }
 
     // Handle decompile (convert XMI to SysML text)
@@ -102,7 +139,7 @@ fn main() -> ExitCode {
     if cli.decompile {
         match decompile_model(&cli.input, None, cli.verbose) {
             Ok(result) => {
-                println!(
+                eprintln!(
                     "✓ Decompiled {} elements from {}",
                     result.element_count, result.source_path
                 );
@@ -116,7 +153,7 @@ fn main() -> ExitCode {
                     eprintln!("error: failed to write {}: {}", sysml_path.display(), e);
                     return ExitCode::FAILURE;
                 }
-                println!("  Wrote: {}", sysml_path.display());
+                eprintln!("  Wrote: {}", sysml_path.display());
 
                 // Write metadata file
                 let metadata_path = sysml_path.with_extension("metadata.json");
@@ -124,7 +161,286 @@ fn main() -> ExitCode {
                     eprintln!("error: failed to write {}: {}", metadata_path.display(), e);
                     return ExitCode::FAILURE;
                 }
-                println!("  Wrote: {}", metadata_path.display());
+                eprintln!("  Wrote: {}", metadata_path.display());
+
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle query / list (semantic model query)
+    #[cfg(feature = "interchange")]
+    if cli.query.is_some() || cli.list {
+        let name_filter = cli.query.as_deref();
+        let kind_filter = cli.kind.as_deref();
+
+        match query_model(
+            &cli.input,
+            name_filter,
+            kind_filter,
+            None, // qualified name — use --inspect for that
+            cli.verbose,
+        ) {
+            Ok(result) => {
+                if cli.json {
+                    let json = serde_json::to_string_pretty(&result)
+                        .expect("failed to serialize query result");
+                    write_output(&json, cli.output.as_ref());
+                } else {
+                    println!("Found {} element(s):", result.match_count);
+                    for el in &result.elements {
+                        let kind = &el.kind;
+                        let name = el.name.as_deref().unwrap_or("(anonymous)");
+                        let qn = el
+                            .qualified_name
+                            .as_deref()
+                            .map(|q| format!("  ({})", q))
+                            .unwrap_or_default();
+                        let typing = if !el.typed_by.is_empty() {
+                            format!(" : {}", el.typed_by.join(", "))
+                        } else {
+                            String::new()
+                        };
+                        let supers = if !el.supertypes.is_empty() {
+                            format!(" :> {}", el.supertypes.join(", "))
+                        } else {
+                            String::new()
+                        };
+                        let abs = if el.is_abstract { " [abstract]" } else { "" };
+                        let members = if el.owned_member_count > 0 {
+                            format!(" ({} members)", el.owned_member_count)
+                        } else {
+                            String::new()
+                        };
+                        println!("  {kind} {name}{typing}{supers}{abs}{members}{qn}");
+                    }
+                }
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle inspect (detailed element view)
+    #[cfg(feature = "interchange")]
+    if let Some(ref target) = cli.inspect {
+        match inspect_element(&cli.input, target, cli.verbose) {
+            Ok(result) => {
+                if cli.json {
+                    let json = serde_json::to_string_pretty(&result)
+                        .expect("failed to serialize inspect result");
+                    write_output(&json, cli.output.as_ref());
+                } else {
+                    let el = &result.element;
+                    let name = el.name.as_deref().unwrap_or("(anonymous)");
+                    println!("{} {}", el.kind, name);
+                    if let Some(qn) = &el.qualified_name {
+                        println!("  qualified: {}", qn);
+                    }
+                    if let Some(owner) = &el.owner {
+                        println!("  owner: {}", owner);
+                    }
+                    if el.is_abstract {
+                        println!("  abstract: true");
+                    }
+                    if !el.typed_by.is_empty() {
+                        println!("  typed by: {}", el.typed_by.join(", "));
+                    }
+                    if !el.supertypes.is_empty() {
+                        println!("  specializes: {}", el.supertypes.join(", "));
+                    }
+                    if let Some(doc) = &el.documentation {
+                        println!("  doc: {}", doc);
+                    }
+
+                    if !result.children.is_empty() {
+                        println!("\n  Children ({}):", result.children.len());
+                        for child in &result.children {
+                            let cn = child.name.as_deref().unwrap_or("(anonymous)");
+                            let ct = if !child.typed_by.is_empty() {
+                                format!(": {}", child.typed_by.join(", "))
+                            } else {
+                                String::new()
+                            };
+                            println!("    {} {}{}", child.kind, cn, ct);
+                        }
+                    }
+
+                    if !result.relationships_from.is_empty() {
+                        println!(
+                            "\n  Relationships from ({}):",
+                            result.relationships_from.len()
+                        );
+                        for rel in &result.relationships_from {
+                            println!("    {} -> {} ({})", rel.source, rel.target, rel.kind);
+                        }
+                    }
+
+                    if !result.relationships_to.is_empty() {
+                        println!("\n  Relationships to ({}):", result.relationships_to.len());
+                        for rel in &result.relationships_to {
+                            println!("    {} -> {} ({})", rel.source, rel.target, rel.kind);
+                        }
+                    }
+                }
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle rename (semantic rename + re-render)
+    #[cfg(feature = "interchange")]
+    if let Some(ref rename_spec) = cli.rename {
+        let parts: Vec<&str> = rename_spec.splitn(2, '=').collect();
+        if parts.len() != 2 {
+            eprintln!("error: --rename requires OLD=NEW format (e.g., --rename Vehicle=Car)");
+            return ExitCode::FAILURE;
+        }
+        let old_name = parts[0];
+        let new_name = parts[1];
+
+        match rename_element(&cli.input, old_name, new_name, cli.verbose) {
+            Ok(result) => {
+                let out_path = cli.output.clone().unwrap_or_else(|| cli.input.clone());
+
+                // Write SysML text
+                if cli.output.is_some() {
+                    write_output(&result.rendered_text, cli.output.as_ref());
+                } else if let Err(e) = std::fs::write(&out_path, &result.rendered_text) {
+                    eprintln!("error: failed to write {}: {}", out_path.display(), e);
+                    return ExitCode::FAILURE;
+                }
+
+                eprintln!(
+                    "✓ Renamed '{}' -> '{}', wrote to {}",
+                    result.old_name,
+                    result.new_name,
+                    out_path.display()
+                );
+
+                // Write updated metadata JSON alongside
+                if let Some(metadata_json) = &result.metadata_json {
+                    let metadata_path = out_path.with_extension("metadata.json");
+                    if let Err(e) = std::fs::write(&metadata_path, metadata_json) {
+                        eprintln!(
+                            "warning: failed to write metadata {}: {}",
+                            metadata_path.display(),
+                            e
+                        );
+                    } else {
+                        eprintln!("  Wrote: {}", metadata_path.display());
+                    }
+                }
+
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle add-member (add a child element)
+    #[cfg(feature = "interchange")]
+    if let Some(ref add_spec) = cli.add_member {
+        // Format: PARENT:KIND:NAME or PARENT:KIND:NAME:TYPE
+        let parts: Vec<&str> = add_spec.splitn(4, ':').collect();
+        if parts.len() < 3 {
+            eprintln!("error: --add-member requires PARENT:KIND:NAME[:TYPE] format");
+            eprintln!("  Example: --add-member Car:PartUsage:turbo");
+            eprintln!("  Example: --add-member Car:PartUsage:turbo:Engine");
+            return ExitCode::FAILURE;
+        }
+        let parent = parts[0];
+        let kind = parts[1];
+        let name = parts[2];
+        let type_name = parts.get(3).copied();
+
+        match add_member(&cli.input, parent, name, kind, type_name, cli.verbose) {
+            Ok(result) => {
+                let out_path = cli.output.clone().unwrap_or_else(|| cli.input.clone());
+
+                if cli.output.is_some() {
+                    write_output(&result.rendered_text, cli.output.as_ref());
+                } else if let Err(e) = std::fs::write(&out_path, &result.rendered_text) {
+                    eprintln!("error: failed to write {}: {}", out_path.display(), e);
+                    return ExitCode::FAILURE;
+                }
+
+                eprintln!(
+                    "✓ Added {} '{}' to '{}', wrote to {}",
+                    result.member_kind,
+                    result.member_name,
+                    result.parent_name,
+                    out_path.display()
+                );
+
+                if let Some(metadata_json) = &result.metadata_json {
+                    let metadata_path = out_path.with_extension("metadata.json");
+                    if let Err(e) = std::fs::write(&metadata_path, metadata_json) {
+                        eprintln!(
+                            "warning: failed to write metadata {}: {}",
+                            metadata_path.display(),
+                            e
+                        );
+                    } else {
+                        eprintln!("  Wrote: {}", metadata_path.display());
+                    }
+                }
+
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {}", e);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // Handle remove-member (remove an element)
+    #[cfg(feature = "interchange")]
+    if let Some(ref target) = cli.remove_member {
+        match remove_member(&cli.input, target, cli.verbose) {
+            Ok(result) => {
+                let out_path = cli.output.clone().unwrap_or_else(|| cli.input.clone());
+
+                if cli.output.is_some() {
+                    write_output(&result.rendered_text, cli.output.as_ref());
+                } else if let Err(e) = std::fs::write(&out_path, &result.rendered_text) {
+                    eprintln!("error: failed to write {}: {}", out_path.display(), e);
+                    return ExitCode::FAILURE;
+                }
+
+                eprintln!(
+                    "✓ Removed '{}', wrote to {}",
+                    result.removed_name,
+                    out_path.display()
+                );
+
+                if let Some(metadata_json) = &result.metadata_json {
+                    let metadata_path = out_path.with_extension("metadata.json");
+                    if let Err(e) = std::fs::write(&metadata_path, metadata_json) {
+                        eprintln!(
+                            "warning: failed to write metadata {}: {}",
+                            metadata_path.display(),
+                            e
+                        );
+                    } else {
+                        eprintln!("  Wrote: {}", metadata_path.display());
+                    }
+                }
 
                 return ExitCode::SUCCESS;
             }
@@ -144,12 +460,18 @@ fn main() -> ExitCode {
                     "✓ Imported {} elements, {} relationships",
                     result.element_count, result.relationship_count
                 );
-                if result.error_count > 0 {
-                    eprintln!("  {} validation issues:", result.error_count);
+                if result.error_count > 0 || result.warning_count > 0 {
+                    let total = result.error_count + result.warning_count;
+                    eprintln!("  {} validation issue(s):", total);
                     for msg in &result.messages {
                         eprintln!("    {}", msg);
                     }
+                }
+                if result.error_count > 0 {
                     return ExitCode::FAILURE;
+                }
+                if result.warning_count > 0 {
+                    return ExitCode::from(2);
                 }
                 return ExitCode::SUCCESS;
             }
