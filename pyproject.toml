@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "syster-cli"
-version = "0.4.0a2"
+version = "0.4.3a0"
 description = "SysML v2 and KerML analysis CLI (binary distribution)"
 readme = "README.md"
 license = "MIT"
