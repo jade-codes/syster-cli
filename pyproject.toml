@@ -1,0 +1,28 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "syster-cli"
+version = "0.4.0a2"
+description = "SysML v2 and KerML analysis CLI (binary distribution)"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "jade-codes" }]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Compilers",
+]
+
+[project.urls]
+Repository = "https://github.com/jade-codes/syster-cli"
+Issues = "https://github.com/jade-codes/syster-cli/issues"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "Cargo.toml"
+strip = true
