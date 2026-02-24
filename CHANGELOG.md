@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3-alpha] - 2026-02-24
+
+### Added
+
+- **PyPI distribution**: Platform-specific wheels published to PyPI via maturin
+- `pip install syster-cli` now installs the binary directly — no Rust toolchain needed
+
 ## [0.4.0-alpha] - 2026-02-15
 
 ### Added
