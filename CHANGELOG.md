@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5-alpha] - 2026-06-09
+
+### Fixed
+
+- **PyPI packaging**: Derive the Python wheel version from `Cargo.toml` via maturin's `dynamic = ["version"]` instead of a hardcoded `pyproject.toml` version. The two had drifted, so the 0.4.4-alpha release built stale `0.4.3a0` wheels and the PyPI publish failed; the wheel and crate versions can no longer diverge.
+
 ## [0.4.4-alpha] - 2026-06-09
 
 ### Changed

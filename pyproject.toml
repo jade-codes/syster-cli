@@ -4,7 +4,9 @@ build-backend = "maturin"
 
 [project]
 name = "syster-cli"
-version = "0.4.3a0"
+# Version is derived from Cargo.toml by maturin (see [tool.maturin].manifest-path)
+# to keep the wheel and crate versions in lockstep — do not hardcode it here.
+dynamic = ["version"]
 description = "SysML v2 and KerML analysis CLI (binary distribution)"
 readme = "README.md"
 license = "MIT"

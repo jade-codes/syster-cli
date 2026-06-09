@@ -1,6 +1,6 @@
 [package]
 name = "syster-cli"
-version = "0.4.4-alpha"
+version = "0.4.5-alpha"
 edition = "2024"
 rust-version = "1.85"
 authors = ["jade-codes"]
