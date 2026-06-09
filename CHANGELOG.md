@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4-alpha] - 2026-06-09
+
+### Changed
+
+- **syster-base**: Updated to v0.4.1-alpha (conditional constraint invocation, unified short-form relationship edges, accept state, view def edges, byte-stable XMI round-trips)
+
 ## [0.4.3-alpha] - 2026-02-24
 
 ### Added
