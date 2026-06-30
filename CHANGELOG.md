@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6-alpha] - 2026-06-30
+
+### Changed
+
+- **syster-base**: Updated to v0.4.2-alpha
+  - Fixes a false-positive `undefined reference` (E0001) on members inherited via a SemanticMetadata `baseType` implicit specialization (e.g. `:> ServiceMethod` inside a `#systemdd`-annotated element)
+  - Includes three parser fixes from base #25 (`to` as a feature name, `actor def` definitions, prefix metadata with a body before a member)
+
 ## [0.4.5-alpha] - 2026-06-09
 
 ### Fixed
