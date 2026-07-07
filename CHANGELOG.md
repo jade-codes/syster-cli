@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1-alpha] - 2026-07-07
+
+### Changed
+
+- **syster-base**: Updated to v0.5.1-alpha — a large batch of language features (v0.5.0: union/exists/infinity expressions, timing, control nodes `fork`/`join`/`merge`/`decide`, specific definition/usage node kinds, user-defined keywords & `actor def`, explicit Null/Empty types, first-class flow payload, filter brackets, concern references, parallel state; parser internals Pest→Rowan), plus the v0.5.1 flow-payload type-reference fix.
+
 ## [0.4.6-alpha] - 2026-06-30
 
 ### Changed
